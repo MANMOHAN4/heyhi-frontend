@@ -1,5 +1,28 @@
+# Dependencies
+node_modules/
+
+# Production builds
+dist/
+dist-ssr/
+build/
+
+# Vite cache
+.vite/
+node_modules/.vite/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Keep non-secret environment templates in Git
+!.env.example
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,18 +30,100 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Runtime data
+pids/
+*.pid
+*.pid.lock
+*.seed
+*.pidb
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Coverage and test outputs
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+
+# TypeScript build artifacts
+*.tsbuildinfo
+
+# ESLint cache
+.eslintcache
+
+# Temporary files
+tmp/
+temp/
+.cache/
+.parcel-cache/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# OS-generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+
+# IDE and editor settings
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Visual Studio / Windows tooling
+.vs/
 *.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+*.user
+*.userossc
+*.sln.docstates
+
+# Local certificates and private keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Local databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Optional local uploads/cache directories
+uploads/
+storage/
+data/
+
+# Generated screenshots and recordings
+screenshots/
+videos/
+*.webm
+*.mp4
+
+# Package manager caches
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Optional Vercel/Netlify local state
+.vercel/
+.netlify/
+
+# Turbo / Nx caches, if added later
+.turbo/
+.nx/
