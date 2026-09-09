@@ -1,78 +1,142 @@
-/**
- * features/admin/components/ModerationQueueTable.tsx
- * Per 03-pages-and-features.md §9 "Moderation Queue": columns query text,
- * reason Badge, user (or "guest"), flagged date. NO "mark reviewed" action
- * exists in the API (flagged gap) - display as read-only for v1.
- */
-import { useModerationQueueQuery } from "../useAdminQueries";
-import { PageErrorState } from "../../../src/components/shared/PageErrorState";
-import { EmptyState } from "../../../src/components/shared/EmptyState";
-import { formatDate } from "../../../../lib/utils";
+import { Flag, ShieldAlert, UserRound } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import { EmptyState } from "@/components/shared/EmptyState";
+import { PageErrorState } from "@/components/shared/PageErrorState";
+import { useModerationQueueQuery } from "@/features/admin/useAdminQueries";
+
+function formatFlaggedDate(isoDate: string): string {
+  const date = new Date(isoDate);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
 
 export function ModerationQueueTable() {
-  const { data, isLoading, isError, refetch } = useModerationQueueQuery();
-
-  if (isLoading) {
-    return (
-      <div className="space-y-1">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-8 animate-pulse rounded bg-muted" />
-        ))}
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <PageErrorState
-        message="Couldn't load the moderation queue."
-        onRetry={() => refetch()}
-      />
-    );
-  }
-
-  if (data?.length === 0) {
-    return <EmptyState message="Nothing flagged — all clear" />;
-  }
+  const moderationQuery = useModerationQueueQuery();
+  const entries = moderationQuery.data ?? [];
 
   return (
-    <div>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Read-only for now — there is currently no API action to mark an entry as
-        reviewed (a known backend gap).
-      </p>
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 text-left">Query</th>
-              <th className="px-3 py-2 text-left">Reason</th>
-              <th className="px-3 py-2 text-left">User</th>
-              <th className="px-3 py-2 text-left">Flagged</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.map((entry) => (
-              <tr key={entry.id} className="border-t">
-                <td className="max-w-xs truncate px-3 py-2">
-                  {entry.query_text}
-                </td>
-                <td className="px-3 py-2">
-                  <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-300">
-                    {entry.reason}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {entry.user_id ?? "Guest"}
-                </td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {formatDate(entry.flagged_at)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <Card className="border-border/80 bg-card/80">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Flag className="size-4 text-muted-foreground" />
+          Moderation queue
+        </CardTitle>
+
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Queries flagged by trust and safety rules. This view is read-only
+          because the current backend does not provide an endpoint to mark an
+          entry reviewed.
+        </p>
+      </CardHeader>
+
+      <CardContent>
+        {moderationQuery.isLoading && <ModerationSkeleton />}
+
+        {moderationQuery.isError && (
+          <PageErrorState
+            message="Couldn't load the moderation queue."
+            onRetry={() => moderationQuery.refetch()}
+          />
+        )}
+
+        {!moderationQuery.isLoading &&
+          !moderationQuery.isError &&
+          entries.length === 0 && (
+            <EmptyState message="Nothing flagged — all clear." />
+          )}
+
+        {!moderationQuery.isLoading &&
+          !moderationQuery.isError &&
+          entries.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-border/70">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Query</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Flagged</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {entries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell className="min-w-72 max-w-xl">
+                        <p className="line-clamp-2 text-sm leading-relaxed">
+                          {entry.query_text}
+                        </p>
+                      </TableCell>
+
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className="gap-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                        >
+                          <ShieldAlert className="size-3.5" />
+                          {entry.reason}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell>
+                        {entry.user_id ? (
+                          <span
+                            className="block max-w-40 truncate font-mono text-xs text-muted-foreground"
+                            title={entry.user_id}
+                          >
+                            {entry.user_id}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <UserRound className="size-3.5" />
+                            Guest
+                          </span>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {formatFlaggedDate(entry.flagged_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ModerationSkeleton() {
+  return (
+    <div className="space-y-2">
+      <Skeleton className="h-11 w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
     </div>
   );
 }

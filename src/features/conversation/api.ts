@@ -1,45 +1,101 @@
-/**
- * features/conversation/api.ts
- * Non-streaming thread management + sharing endpoints. The three streaming
- * endpoints (POST /threads, /threads/{id}/turns, /threads/pro-search) are
- * NOT here - they're driven directly via streamQuery() in sse.ts / the
- * useThreadStream hook, since they need raw Response/ReadableStream access
- * that apiFetch's JSON-only contract doesn't support.
- */
-import { apiFetch } from "../../../lib/apiClient";
+import { getAccessToken, getApiBaseUrl, apiFetch } from "@/lib/api";
+import { parseApiError } from "@/lib/apiError";
+
 import type {
-  ThreadSummary,
-  RenameThreadRequest,
+  CreateThreadRequest,
+  ProSearchRequest,
   ShareThreadResponse,
+  Thread,
+  ThreadSummary,
 } from "./types";
 
-export function getThreads(q?: string): Promise<ThreadSummary[]> {
-  const query = q ? `?q=${encodeURIComponent(q)}` : "";
-  return apiFetch<ThreadSummary[]>(`/threads${query}`, { method: "GET" });
+export function getThreads(query?: string): Promise<ThreadSummary[]> {
+  const search = query?.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+
+  return apiFetch<ThreadSummary[]>(`/threads${search}`);
+}
+
+export function getThread(threadId: string): Promise<Thread> {
+  return apiFetch<Thread>(`/threads/${encodeURIComponent(threadId)}`);
+}
+
+export async function createThread(
+  request: CreateThreadRequest,
+): Promise<Response> {
+  return fetchSse("/threads", request);
+}
+
+export async function continueThread(
+  threadId: string,
+  query: string,
+): Promise<Response> {
+  return fetchSse(`/threads/${encodeURIComponent(threadId)}/turns`, { query });
+}
+
+export async function proSearch(request: ProSearchRequest): Promise<Response> {
+  return fetchSse("/threads/pro-search", request);
 }
 
 export function renameThread(
   threadId: string,
-  payload: RenameThreadRequest,
+  payload: { title: string },
 ): Promise<void> {
-  return apiFetch<void>(`/threads/${threadId}`, {
+  return apiFetch<void>(`/threads/${encodeURIComponent(threadId)}`, {
     method: "PATCH",
-    body: payload,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   });
 }
 
 export function deleteThread(threadId: string): Promise<void> {
-  return apiFetch<void>(`/threads/${threadId}`, { method: "DELETE" });
-}
-
-export function shareThread(threadId: string): Promise<ShareThreadResponse> {
-  // Idempotent - calling again on an already-shared thread returns the same
-  // token, safe to call every time the user clicks "Share".
-  return apiFetch<ShareThreadResponse>(`/threads/${threadId}/share`, {
-    method: "POST",
+  return apiFetch<void>(`/threads/${encodeURIComponent(threadId)}`, {
+    method: "DELETE",
   });
 }
 
+export function shareThread(threadId: string): Promise<ShareThreadResponse> {
+  return apiFetch<ShareThreadResponse>(
+    `/threads/${encodeURIComponent(threadId)}/share`,
+    {
+      method: "POST",
+    },
+  );
+}
+
 export function revokeShare(threadId: string): Promise<void> {
-  return apiFetch<void>(`/threads/${threadId}/share`, { method: "DELETE" });
+  return apiFetch<void>(`/threads/${encodeURIComponent(threadId)}/share`, {
+    method: "DELETE",
+  });
+}
+
+async function fetchSse(path: string, body: object): Promise<Response> {
+  const headers = new Headers({
+    Accept: "text/event-stream",
+    "Content-Type": "application/json",
+    "Cache-Control": "no-cache",
+  });
+
+  const accessToken = getAccessToken();
+
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw await parseApiError(response);
+  }
+
+  if (!response.body) {
+    throw new Error("The server returned an empty streaming response.");
+  }
+
+  return response;
 }

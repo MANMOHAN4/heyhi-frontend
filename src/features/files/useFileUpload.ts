@@ -1,48 +1,64 @@
-/**
- * features/files/useFileUpload.ts
- * Per 01-backend-reference.md "File Uploads": PDF/DOCX/plain text only,
- * 25MB max, both limits enforced server-side (413/415) before any
- * processing occurs. Client-side pre-checks here are a courtesy, not the
- * source of truth - always surface the backend's own error message too.
- */
 import { useMutation } from "@tanstack/react-query";
-import { uploadFile } from "./api";
-import { ApiError } from "../../../lib/apiError";
-import {
-  FILE_MAX_SIZE_BYTES,
-  SUPPORTED_FILE_TYPES,
-} from "../../../lib/constants";
-import { toast } from "sonner";
+
+import { ApiError, parseApiError } from "@/lib/apiError";
+import { getAccessToken, getApiBaseUrl } from "@/lib/api";
+
+type UploadedFile = {
+  id: string;
+  filename: string;
+  status: "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+};
+
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+
+const SUPPORTED_TYPES = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+]);
+
+async function uploadFile(file: File): Promise<UploadedFile> {
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    throw new ApiError(
+      "FILE_TOO_LARGE",
+      "Files must be 25 MB or smaller.",
+      413,
+    );
+  }
+
+  if (!SUPPORTED_TYPES.has(file.type)) {
+    throw new ApiError(
+      "UNSUPPORTED_FILE_TYPE",
+      "Only PDF, DOCX, and TXT files are supported.",
+      415,
+    );
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers = new Headers();
+  const accessToken = getAccessToken();
+
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}/files`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw await parseApiError(response);
+  }
+
+  return (await response.json()) as UploadedFile;
+}
 
 export function useFileUpload() {
   return useMutation({
-    mutationFn: async (file: File) => {
-      if (file.size > FILE_MAX_SIZE_BYTES) {
-        throw new ApiError(413, {
-          code: "FILE_TOO_LARGE",
-          message: "This file is larger than the 25MB limit.",
-          request_id: "",
-        });
-      }
-      if (
-        !SUPPORTED_FILE_TYPES.includes(
-          file.type as (typeof SUPPORTED_FILE_TYPES)[number],
-        )
-      ) {
-        throw new ApiError(415, {
-          code: "UNSUPPORTED_FILE_TYPE",
-          message: "Only PDF, DOCX, and plain text files are supported.",
-          request_id: "",
-        });
-      }
-      return uploadFile(file);
-    },
-    onError: (err) => {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : "Upload failed. Please try again.";
-      toast.error(message);
-    },
+    mutationFn: uploadFile,
   });
 }

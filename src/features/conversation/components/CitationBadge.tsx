@@ -1,60 +1,168 @@
-/**
- * features/conversation/components/CitationBadge.tsx
- *
- * Per 03-pages-and-features.md §3: citation markers ([1], [2]) within the
- * streamed answer text render as small inline Badges; hovering shows source
- * title/domain/snippet. IMPORTANT: sources/citations arrive AFTER all
- * token events (see SSE Event Reference) - so markers render as PLAIN TEXT
- * during streaming and only become interactive badges once the `sources`
- * event lands. This is expected behavior, not a bug to "fix".
- */
-import type { Source } from "../types";
+import * as React from "react";
+import { ExternalLink, FileText } from "lucide-react";
 
-interface CitationBadgeProps {
+import { Badge } from "@/components/ui/badge";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import type { Citation, Source } from "@/features/conversation/types";
+
+type CitationBadgeProps = {
   markerIndex: number;
-  source: Source | undefined; // undefined until sources/citations have arrived
-}
+  source?: Source;
+  className?: string;
+};
 
-export function CitationBadge({ markerIndex, source }: CitationBadgeProps) {
+export function CitationBadge({
+  markerIndex,
+  source,
+  className,
+}: CitationBadgeProps) {
   if (!source) {
-    // Streaming not yet complete for citations - render as plain text.
-    return <span>[{markerIndex}]</span>;
+    return <span className="text-muted-foreground">[{markerIndex}]</span>;
   }
 
-  return (
-    <span className="group relative inline-block">
-      <sup className="mx-0.5 cursor-help rounded bg-primary/10 px-1 text-[10px] font-medium text-primary">
-        {markerIndex}
-      </sup>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 w-64 -translate-x-1/2 rounded-md border bg-popover p-2 text-xs opacity-0 shadow-md transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+  const isFileSource = source.url.startsWith("file://");
+
+  const trigger = isFileSource ? (
+    <button
+      type="button"
+      aria-label={`Citation ${markerIndex}: ${source.title}`}
+      className="inline-flex align-baseline"
+    >
+      <Badge
+        variant="secondary"
+        className={`mx-0.5 inline-flex h-5 cursor-help items-center rounded-md px-1.5 text-[11px] font-medium leading-none hover:bg-accent ${
+          className ?? ""
+        }`}
       >
-        <p className="font-medium">{source.title}</p>
-        <p className="text-muted-foreground">{source.domain}</p>
-        <p className="mt-1 line-clamp-3 text-muted-foreground">{source.snippet}</p>
-      </span>
-    </span>
+        {markerIndex}
+      </Badge>
+    </button>
+  ) : (
+    <a
+      href={source.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Open citation ${markerIndex}: ${source.title}`}
+      className="inline-flex align-baseline"
+    >
+      <Badge
+        variant="secondary"
+        className={`mx-0.5 inline-flex h-5 items-center rounded-md px-1.5 text-[11px] font-medium leading-none transition-colors hover:bg-accent ${
+          className ?? ""
+        }`}
+      >
+        {markerIndex}
+      </Badge>
+    </a>
+  );
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger render={trigger} />
+
+      <HoverCardContent align="start" side="top" className="w-80 space-y-2 p-3">
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
+            {isFileSource ? (
+              <FileText className="size-3.5 text-muted-foreground" />
+            ) : (
+              <ExternalLink className="size-3.5 text-muted-foreground" />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-sm font-medium leading-snug">
+              {source.title}
+            </p>
+
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {isFileSource ? "From an uploaded document" : source.domain}
+            </p>
+          </div>
+        </div>
+
+        {source.snippet && (
+          <p className="line-clamp-4 text-xs leading-relaxed text-muted-foreground">
+            {source.snippet}
+          </p>
+        )}
+
+        {!isFileSource && (
+          <p className="truncate text-xs text-primary underline underline-offset-4">
+            {source.url}
+          </p>
+        )}
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
-/**
- * Renders answer_text with [n] markers replaced by CitationBadge components.
- * Splits on the literal "[n]" pattern - this is a simple, reliable approach
- * given the backend guarantees markers appear as plain "[1]", "[2]" etc.
- * inline within the streamed text (see 01-backend-reference.md "Turn").
- */
-export function renderAnswerWithCitations(
-  answerText: string,
-  citationsBySourceId: Map<number, Source | undefined>
-): React.ReactNode[] {
-  const parts = answerText.split(/(\[\d+\])/g);
-  return parts.map((part, i) => {
-    const match = part.match(/^\[(\d+)\]$/);
-    if (!match) return <span key={i}>{part}</span>;
-    const markerIndex = parseInt(match[1], 10);
-    return (
-      <CitationBadge key={i} markerIndex={markerIndex} source={citationsBySourceId.get(markerIndex)} />
-    );
-  });
+export function buildCitationSourceMap(
+  citations: Citation[] | null | undefined,
+  sources: Source[] | null | undefined,
+): Map<number, Source | undefined> {
+  const map = new Map<number, Source | undefined>();
+
+  if (!citations || !sources) {
+    return map;
+  }
+
+  const sourceById = new Map(sources.map((source) => [source.id, source]));
+
+  for (const citation of citations) {
+    map.set(citation.marker_index, sourceById.get(citation.source_id));
+  }
+
+  return map;
+}
+
+type AnswerWithCitationsProps = {
+  answerText: string;
+  citations?: Citation[] | null;
+  sources?: Source[] | null;
+  className?: string;
+};
+
+export function AnswerWithCitations({
+  answerText,
+  citations,
+  sources,
+  className,
+}: AnswerWithCitationsProps) {
+  const citationSourceMap = React.useMemo(
+    () => buildCitationSourceMap(citations, sources),
+    [citations, sources],
+  );
+
+  const content = React.useMemo(() => {
+    return answerText.split(/(\[\d+\])/g).map((part, index) => {
+      const match = part.match(/^\[(\d+)\]$/);
+
+      if (!match) {
+        return <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>;
+      }
+
+      const markerIndex = Number(match[1]);
+
+      return (
+        <CitationBadge
+          key={`${markerIndex}-${index}`}
+          markerIndex={markerIndex}
+          source={citationSourceMap.get(markerIndex)}
+        />
+      );
+    });
+  }, [answerText, citationSourceMap]);
+
+  return (
+    <div
+      className={`whitespace-pre-wrap break-words leading-7 ${className ?? ""}`}
+    >
+      {content}
+    </div>
+  );
 }

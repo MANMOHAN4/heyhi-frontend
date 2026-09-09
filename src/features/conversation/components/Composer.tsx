@@ -1,157 +1,272 @@
-/**
- * features/conversation/components/Composer.tsx
- *
- * Per 03-pages-and-features.md §3 "Composing a query":
- * Input Group = Textarea (char count near 2000 limit) + FocusModeToggle +
- * FileAttachButton + ModelSelect (Pro/Enterprise only) + Send, plus a
- * separate Pro Search toggle.
- *
- * Behavior split:
- *  - New thread (no threadId prop): focus_mode/file_ids/model/space_id are
- *    all selectable and sent with the first query.
- *  - Continuing thread (threadId provided): per 02-api-reference.md, only
- *    `query` is accepted - focus_mode/file_ids/model/space_id controls are
- *    disabled/hidden, reusing whatever was fixed at creation.
- */
-import { useState } from "react";
-import { FocusModeToggle } from "./FocusModeToggle";
-import { FileAttachButton } from "./FileAttachButton";
-import { ModelSelect } from "./ModelSelect";
-import { ProSearchToggle } from "./ProSearchToggle";
-import type { UploadedDocument } from "../../files/types";
-import { QUERY_MAX_LENGTH, type FocusMode } from "../../../../lib/constants";
-import { Send } from "lucide-react";
+import { useRef, useState } from "react";
+import { SendHorizontal, Sparkles, Square } from "lucide-react";
 
-interface ComposerProps {
-  threadId?: string; // undefined = composing the first turn of a new thread
+import { Button } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+import { FileAttachButton } from "@/features/conversation/components/FileAttachButton";
+import { FocusModeControl } from "@/features/conversation/components/FocusModeControl";
+import { ModelSelect } from "@/features/conversation/components/ModelSelect";
+import { useAuthStore } from "@/features/auth/useAuthStore";
+import { QUERY_MAX_LENGTH, type FocusMode } from "@/lib/constants";
+
+export type ComposerSubmitParams = {
+  query: string;
+  focusMode: FocusMode;
+  fileIds: string[];
+  model: string;
+  isProSearch: boolean;
+};
+
+type ComposerProps = {
+  threadId?: string;
   spaceId?: string;
   isStreaming: boolean;
-  onSubmit: (params: {
-    query: string;
-    focusMode: FocusMode;
-    fileIds: string[];
-    model: string;
-    isProSearch: boolean;
-  }) => void;
-}
+  onSubmit: (params: ComposerSubmitParams) => void;
+  onStopStreaming?: () => void;
+};
 
 export function Composer({
   threadId,
   spaceId,
   isStreaming,
   onSubmit,
+  onStopStreaming,
 }: ComposerProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const accessToken = useAuthStore((state) => state.accessToken);
+
   const [query, setQuery] = useState("");
   const [focusMode, setFocusMode] = useState<FocusMode>("WEB");
   const [model, setModel] = useState("auto");
-  const [attachedFiles, setAttachedFiles] = useState<UploadedDocument[]>([]);
-  const [proSearchActive, setProSearchActive] = useState(false);
+  const [fileIds, setFileIds] = useState<string[]>([]);
+  const [isProSearch, setIsProSearch] = useState(false);
 
-  const isContinuation = !!threadId;
-  const remaining = QUERY_MAX_LENGTH - query.length;
+  const isContinuation = Boolean(threadId);
+  const canUseProSearch = Boolean(accessToken) && !isContinuation;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = query.trim();
-    if (!trimmed || trimmed.length > QUERY_MAX_LENGTH || isStreaming) return;
+  const remainingCharacters = QUERY_MAX_LENGTH - query.length;
+
+  const canSubmit =
+    !isStreaming && query.trim().length > 0 && query.length <= QUERY_MAX_LENGTH;
+
+  const submitQuery = () => {
+    const trimmedQuery = query.trim();
+
+    if (
+      !trimmedQuery ||
+      trimmedQuery.length > QUERY_MAX_LENGTH ||
+      isStreaming
+    ) {
+      return;
+    }
 
     onSubmit({
-      query: trimmed,
+      query: trimmedQuery,
       focusMode,
-      fileIds: attachedFiles
-        .filter((f) => f.status === "READY")
-        .map((f) => f.id),
+      fileIds,
       model,
-      isProSearch: proSearchActive && !isContinuation,
+      isProSearch: canUseProSearch && isProSearch,
     });
+
     setQuery("");
+    setFileIds([]);
+    setIsProSearch(false);
+
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+  };
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    submitQuery();
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      submitQuery();
+    }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="
-    rounded-2xl border border-border/80
-    bg-card/80 p-3 shadow-[0_12px_35px_-18px_rgba(0,0,0,0.75)]
-    backdrop-blur-sm
-    transition-shadow duration-200
-    focus-within:border-ring/60
-    focus-within:shadow-[0_14px_40px_-18px_rgba(0,0,0,0.9)]
-  "
-    >
-      <textarea
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit(e);
-          }
-        }}
-        placeholder="Ask anything…"
-        rows={2}
-        maxLength={QUERY_MAX_LENGTH + 50} // allow slight overtype, block on submit instead
-        disabled={isStreaming}
-        aria-label="Query"
-        className="w-full resize-none bg-transparent text-sm outline-none disabled:opacity-60"
-      />
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <FocusModeToggle
-            value={focusMode}
-            onChange={setFocusMode}
-            disabled={isContinuation || isStreaming}
-          />
-          {!isContinuation && (
-            <ModelSelect
-              value={model}
-              onChange={setModel}
-              disabled={isStreaming}
-            />
-          )}
-          {!isContinuation && (
-            <FileAttachButton
-              attachedFiles={attachedFiles}
-              onFilesChange={setAttachedFiles}
-              disabled={isStreaming}
-            />
-          )}
-          {!isContinuation && (
-            <ProSearchToggle
-              active={proSearchActive}
-              onToggle={() => setProSearchActive((v) => !v)}
-              disabled={isStreaming}
-            />
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {remaining < 100 && (
-            <span
-              className={`text-xs ${remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}
-            >
-              {remaining}
-            </span>
-          )}
-          <button
-            type="submit"
-            disabled={
-              isStreaming || !query.trim() || query.length > QUERY_MAX_LENGTH
+    <div className="w-full">
+      <form
+        onSubmit={handleSubmit}
+        className="rounded-2xl border border-border/80 bg-card/95 p-2 shadow-[0_16px_45px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl transition-all duration-200 focus-within:border-ring/60 focus-within:shadow-[0_20px_55px_-24px_rgba(0,0,0,0.95)]"
+      >
+        <InputGroup className="min-h-28 border-0 bg-transparent shadow-none">
+          <InputGroupTextarea
+            ref={textareaRef}
+            rows={3}
+            value={query}
+            disabled={isStreaming}
+            maxLength={QUERY_MAX_LENGTH + 50}
+            placeholder={
+              isContinuation ? "Ask a follow-up question…" : "Ask anything…"
             }
-            aria-label="Send"
-            className="rounded-md bg-primary p-2 text-primary-foreground disabled:opacity-50"
+            aria-label="Ask a question"
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={handleKeyDown}
+            className="min-h-24 resize-none px-3 pt-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground/70"
+          />
+
+          <InputGroupAddon
+            align="block-end"
+            className="flex min-w-0 flex-wrap items-center gap-1.5 px-2 pb-2 pt-1"
           >
-            <Send className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+              <FocusModeControl
+                value={focusMode}
+                onValueChange={setFocusMode}
+                disabled={isStreaming || isContinuation}
+                compact={isContinuation}
+              />
+
+              {!isContinuation && (
+                <>
+                  <Separator
+                    orientation="vertical"
+                    className="mx-1 hidden h-5 sm:block"
+                  />
+
+                  <FileAttachButton
+                    disabled={isStreaming}
+                    onFileIdsChange={setFileIds}
+                  />
+
+                  <ModelSelect
+                    value={model}
+                    onValueChange={setModel}
+                    disabled={isStreaming}
+                  />
+
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <InputGroupButton
+                          type="button"
+                          size="sm"
+                          variant={isProSearch ? "secondary" : "ghost"}
+                          disabled={!canUseProSearch || isStreaming}
+                          aria-pressed={isProSearch}
+                          onClick={() => {
+                            if (canUseProSearch) {
+                              setIsProSearch((current) => !current);
+                            }
+                          }}
+                          className={
+                            isProSearch
+                              ? "gap-1.5 bg-violet-500/15 text-violet-300 hover:bg-violet-500/20 hover:text-violet-200"
+                              : "gap-1.5"
+                          }
+                        >
+                          <Sparkles className="size-3.5" />
+                          <span className="hidden sm:inline">Pro Search</span>
+                        </InputGroupButton>
+                      }
+                    />
+
+                    <TooltipContent side="top">
+                      {canUseProSearch
+                        ? "Run multi-step agentic research"
+                        : "Sign in to use Pro Search"}
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              {query.length > QUERY_MAX_LENGTH - 160 && (
+                <span
+                  className={`hidden text-xs sm:inline ${
+                    remainingCharacters < 0
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {remainingCharacters}
+                </span>
+              )}
+
+              {!isStreaming && (
+                <span className="hidden text-xs text-muted-foreground lg:inline-flex lg:items-center lg:gap-1">
+                  <Kbd>Enter</Kbd>
+                  <span>send</span>
+                </span>
+              )}
+
+              {isStreaming ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="secondary"
+                        onClick={onStopStreaming}
+                        aria-label="Stop generating"
+                        className="rounded-xl"
+                      >
+                        <Square className="size-3.5 fill-current" />
+                      </Button>
+                    }
+                  />
+
+                  <TooltipContent side="top">Stop generating</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="submit"
+                        size="icon-sm"
+                        disabled={!canSubmit}
+                        aria-label="Send question"
+                        className="rounded-xl"
+                      >
+                        <SendHorizontal className="size-4" />
+                      </Button>
+                    }
+                  />
+
+                  <TooltipContent side="top">Send question</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </InputGroupAddon>
+        </InputGroup>
+      </form>
 
       {spaceId && !isContinuation && (
-        <p className="text-xs text-muted-foreground">
-          Grounded in this Space's shared files and custom instructions.
+        <p className="mt-2 px-1 text-xs text-muted-foreground">
+          This conversation will use this Space&apos;s shared files and custom
+          instructions.
         </p>
       )}
-    </form>
+
+      {!accessToken && !isContinuation && (
+        <p className="mt-2 px-1 text-xs text-muted-foreground">
+          You are using a guest session. Sign in to save your conversation
+          history.
+        </p>
+      )}
+    </div>
   );
 }

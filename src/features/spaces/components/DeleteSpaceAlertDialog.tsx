@@ -1,63 +1,102 @@
-/**
- * features/spaces/components/DeleteSpaceAlertDialog.tsx
- * Per 03-pages-and-features.md §6: OWNER role SPECIFICALLY (an EDITOR
- * cannot delete a Space, even though they can modify it) - see
- * 02-api-reference.md "DELETE /spaces/{spaceId}".
- */
+import { useState } from "react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useDeleteSpace } from "../useSpaceMutations";
 
-interface DeleteSpaceAlertDialogProps {
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { useDeleteSpace } from "@/features/spaces/useSpaceMutations";
+
+type DeleteSpaceAlertDialogProps = {
   spaceId: string;
   spaceName: string;
   open: boolean;
-  onClose: () => void;
-}
+  onOpenChange: (open: boolean) => void;
+};
 
 export function DeleteSpaceAlertDialog({
   spaceId,
   spaceName,
   open,
-  onClose,
+  onOpenChange,
 }: DeleteSpaceAlertDialogProps) {
-  const deleteSpace = useDeleteSpace();
   const navigate = useNavigate();
+  const deleteMutation = useDeleteSpace();
+  const [confirmation, setConfirmation] = useState("");
 
-  if (!open) return null;
+  const canDelete = confirmation.trim() === spaceName;
 
-  const handleConfirm = () => {
-    deleteSpace.mutate(spaceId, {
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!deleteMutation.isPending && !nextOpen) {
+      setConfirmation("");
+      onOpenChange(false);
+      return;
+    }
+
+    onOpenChange(nextOpen);
+  };
+
+  const handleDelete = () => {
+    deleteMutation.mutate(spaceId, {
       onSuccess: () => {
-        onClose();
+        setConfirmation("");
+        onOpenChange(false);
         navigate("/spaces", { replace: true });
       },
     });
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-80 rounded-lg border bg-popover p-4 shadow-lg">
-        <h2 className="font-semibold">Delete "{spaceName}"?</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          This permanently deletes the Space, its shared files, and collaborator
-          access. This can't be undone.
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-md border px-3 py-1.5 text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={deleteSpace.isPending}
-            className="rounded-md bg-destructive px-3 py-1.5 text-sm text-destructive-foreground disabled:opacity-50"
-          >
-            {deleteSpace.isPending ? "Deleting…" : "Delete"}
-          </button>
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+            <Trash2 className="size-4" />
+            Delete this Space?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This permanently deletes <strong>{spaceName}</strong>, its shared
+            files, and collaborator access. This cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-2">
+          <label htmlFor="delete-space-confirm" className="text-sm font-medium">
+            Type <span className="font-mono">{spaceName}</span> to confirm
+          </label>
+          <Input
+            id="delete-space-confirm"
+            value={confirmation}
+            autoFocus
+            disabled={deleteMutation.isPending}
+            onChange={(event) => setConfirmation(event.target.value)}
+          />
         </div>
-      </div>
-    </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleteMutation.isPending}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!canDelete || deleteMutation.isPending}
+            onClick={handleDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {deleteMutation.isPending && (
+              <Loader2 className="size-4 animate-spin" />
+            )}
+            Delete Space
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

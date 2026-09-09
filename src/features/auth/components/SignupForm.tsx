@@ -1,120 +1,126 @@
-/**
- * features/auth/components/SignupForm.tsx
- * Per 03-pages-and-features.md "/signup":
- *  - email, password (client-side validate >= 10 chars to match backend,
- *    but backend validation is the source of truth).
- *  - On 201 success: does NOT return tokens - show "check your email to
- *    verify" state, then let the parent page redirect to /login.
- *  - 409 -> inline "an account with this email already exists"
- *  - 422 -> field-level message from the backend's `message`
- */
 import { useState } from "react";
-import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
-import { signup } from "../api";
-import { ApiError } from "../../../../lib/apiError";
-import { PASSWORD_MIN_LENGTH } from "../../../../lib/constants";
+import { Loader2 } from "lucide-react";
 
-interface SignupFormValues {
-  email: string;
-  password: string;
-}
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ApiError } from "@/lib/apiError";
+import { PASSWORD_MIN_LENGTH } from "@/lib/constants";
 
-interface SignupFormProps {
+import { signup, type SignupRequest } from "../api";
+
+type SignupFormValues = SignupRequest;
+
+type SignupFormProps = {
   onVerificationPending: () => void;
-}
+};
 
 export function SignupForm({ onVerificationPending }: SignupFormProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<SignupFormValues>();
-
   const mutation = useMutation({
-    mutationFn: signup,
+    mutationFn: (values: SignupFormValues) => signup(values),
+
     onSuccess: () => {
-      setServerError(null);
       onVerificationPending();
     },
-    onError: (err) => {
+
+    onError: (err: unknown) => {
       if (err instanceof ApiError) {
         if (err.code === "EMAIL_ALREADY_REGISTERED") {
           setServerError("An account with this email already exists.");
           return;
         }
+
         setServerError(err.message);
         return;
       }
-      setServerError("Something went wrong. Please try again.");
+
+      setServerError("Unable to create your account. Please try again.");
     },
   });
 
-  const onSubmit = (values: SignupFormValues) => mutation.mutate(values);
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      setServerError("Enter your email address.");
+      return;
+    }
+
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setServerError(
+        `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`,
+      );
+      return;
+    }
+
+    setServerError(null);
+
+    mutation.mutate({
+      email: normalizedEmail,
+      password,
+    });
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-      <div className="space-y-1.5">
-        <label htmlFor="email" className="text-sm font-medium">
-          Email
-        </label>
-        <input
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+
+        <Input
           id="email"
+          name="email"
           type="email"
           autoComplete="email"
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          aria-invalid={!!errors.email}
-          {...register("email", {
-            required: "Email is required",
-            pattern: {
-              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-              message: "Enter a valid email address",
-            },
-          })}
+          placeholder="you@example.com"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          disabled={mutation.isPending}
+          required
         />
-        {errors.email && (
-          <p className="text-sm text-destructive">{errors.email.message}</p>
-        )}
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="password" className="text-sm font-medium">
-          Password
-        </label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+
+        <Input
           id="password"
+          name="password"
           type="password"
           autoComplete="new-password"
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          aria-invalid={!!errors.password}
-          {...register("password", {
-            required: "Password is required",
-            minLength: {
-              value: PASSWORD_MIN_LENGTH,
-              message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters`,
-            },
-          })}
+          placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          disabled={mutation.isPending}
+          required
         />
-        {errors.password && (
-          <p className="text-sm text-destructive">{errors.password.message}</p>
-        )}
       </div>
 
-      {serverError && (
-        <p role="alert" className="text-sm text-destructive">
+      {serverError ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
           {serverError}
         </p>
-      )}
+      ) : null}
 
-      <button
-        type="submit"
-        disabled={isSubmitting || mutation.isPending}
-        className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-      >
-        {mutation.isPending ? "Creating account…" : "Sign up"}
-      </button>
+      <Button type="submit" className="w-full" disabled={mutation.isPending}>
+        {mutation.isPending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Creating account…
+          </>
+        ) : (
+          "Create account"
+        )}
+      </Button>
     </form>
   );
 }

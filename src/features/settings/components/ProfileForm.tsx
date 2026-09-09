@@ -1,101 +1,271 @@
-/**
- * features/settings/components/ProfileForm.tsx
- * Per 03-pages-and-features.md §7 "Profile tab": display_name (editable,
- * PATCH /users/me), email (read-only), email verification status badge.
- * Per the Forms Validation Summary: display_name non-empty is a reasonable
- * client rule - backend has no stated length limit found, so none is
- * enforced client-side beyond non-empty.
- */
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  BadgeCheck,
+  Check,
+  CircleAlert,
+  Loader2,
+  Pencil,
+  X,
+} from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { updateMe } from "../../auth/api";
-import { useAuthStore } from "../../auth/useAuthStore";
-import { CheckCircle2, AlertCircle, Pencil, Check, X } from "lucide-react";
-import type { User } from "../../auth/types";
 
-interface ProfileFormProps {
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+
+import { updateMyProfile } from "@/features/settings/api";
+import { useAuthStore } from "@/features/auth/useAuthStore";
+import { ApiError } from "@/lib/apiError";
+import type { User } from "@/features/auth/types";
+
+type ProfileFormProps = {
   user: User;
+};
+
+function getProfileErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401 || error.code === "UNAUTHORIZED") {
+      return "Your session has expired. Please sign in again.";
+    }
+
+    if (error.code === "VALIDATION_ERROR") {
+      return error.message;
+    }
+
+    return error.message || "Couldn't update your profile.";
+  }
+
+  return "Couldn't update your profile. Please try again.";
 }
 
 export function ProfileForm({ user }: ProfileFormProps) {
-  const [editing, setEditing] = useState(false);
-  const [displayName, setDisplayName] = useState(user.display_name ?? "");
-  const setUser = useAuthStore((s) => s.setUser);
   const queryClient = useQueryClient();
+  const setUser = useAuthStore((state) => state.setUser);
 
-  const mutation = useMutation({
-    mutationFn: updateMe,
-    onSuccess: (updatedUser) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [displayName, setDisplayName] = useState(user.display_name ?? "");
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setDisplayName(user.display_name ?? "");
+      setDisplayNameError(null);
+    }
+  }, [isEditing, user.display_name]);
+
+  const updateProfileMutation = useMutation({
+    mutationFn: updateMyProfile,
+
+    onSuccess: async (updatedUser) => {
+      /*
+       * Keep all representations of the signed-in profile synchronized:
+       * - Zustand: application/session identity shown in sidebar/avatar.
+       * - React Query: Settings page server-state cache.
+       */
       setUser(updatedUser);
+
       queryClient.setQueryData(["profile", "me"], updatedUser);
+      await queryClient.invalidateQueries({
+        queryKey: ["profile", "me"],
+      });
+
       toast.success("Profile updated");
-      setEditing(false);
+      setIsEditing(false);
+      setDisplayNameError(null);
     },
-    onError: () =>
-      toast.error("Couldn't update your profile. Please try again."),
+
+    onError: (error) => {
+      const message = getProfileErrorMessage(error);
+      setDisplayNameError(message);
+      toast.error(message);
+    },
   });
 
-  const handleSave = () => {
-    const trimmed = displayName.trim();
-    if (!trimmed) {
-      toast.error("Display name can't be empty.");
-      return;
-    }
-    mutation.mutate({ display_name: trimmed });
+  const handleCancel = () => {
+    setDisplayName(user.display_name ?? "");
+    setDisplayNameError(null);
+    setIsEditing(false);
+    updateProfileMutation.reset();
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Display name</label>
-        {editing ? (
-          <div className="flex items-center gap-2">
-            <input
-              autoFocus
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="flex-1 rounded-md border px-3 py-2 text-sm"
-            />
-            <button
-              onClick={handleSave}
-              disabled={mutation.isPending}
-              aria-label="Save"
-            >
-              <Check className="h-4 w-4" />
-            </button>
-            <button onClick={() => setEditing(false)} aria-label="Cancel">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <p className="text-sm">{user.display_name || "(not set)"}</p>
-            <button
-              onClick={() => setEditing(true)}
-              aria-label="Edit display name"
-            >
-              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          </div>
-        )}
-      </div>
+  const handleSave = () => {
+    const trimmedDisplayName = displayName.trim();
 
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Email</label>
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-muted-foreground">{user.email}</p>
-          {user.email_verified ? (
-            <span className="flex items-center gap-1 rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950 dark:text-green-300">
-              <CheckCircle2 className="h-3 w-3" /> Verified
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300">
-              <AlertCircle className="h-3 w-3" /> Unverified
-            </span>
-          )}
+    /*
+     * The backend has no documented max length for display_name.
+     * We only perform the reasonable client-side non-empty validation;
+     * backend 422 validation remains the authoritative fallback.
+     */
+    if (!trimmedDisplayName) {
+      setDisplayNameError("Display name cannot be empty.");
+      return;
+    }
+
+    if (trimmedDisplayName === (user.display_name ?? "")) {
+      setIsEditing(false);
+      return;
+    }
+
+    setDisplayNameError(null);
+
+    updateProfileMutation.mutate({
+      display_name: trimmedDisplayName,
+    });
+  };
+
+  const createdDate = new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(user.created_at));
+
+  return (
+    <Card className="border-border/80 bg-card/80">
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle className="text-base">Profile</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage the identity shown across your heyHi workspace.
+          </p>
         </div>
-      </div>
-    </div>
+
+        {!isEditing && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 gap-1.5"
+            onClick={() => setIsEditing(true)}
+          >
+            <Pencil className="size-3.5" />
+            Edit
+          </Button>
+        )}
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        <Field data-invalid={Boolean(displayNameError)}>
+          <FieldLabel htmlFor="profile-display-name">Display name</FieldLabel>
+
+          {isEditing ? (
+            <>
+              <div className="flex min-w-0 items-center gap-2">
+                <Input
+                  id="profile-display-name"
+                  value={displayName}
+                  autoFocus
+                  disabled={updateProfileMutation.isPending}
+                  aria-invalid={Boolean(displayNameError)}
+                  placeholder="Your name"
+                  onChange={(event) => {
+                    setDisplayName(event.target.value);
+
+                    if (displayNameError) {
+                      setDisplayNameError(null);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleSave();
+                    }
+
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      handleCancel();
+                    }
+                  }}
+                />
+
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  disabled={updateProfileMutation.isPending}
+                  onClick={handleSave}
+                  aria-label="Save display name"
+                >
+                  {updateProfileMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Check className="size-4" />
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={updateProfileMutation.isPending}
+                  onClick={handleCancel}
+                  aria-label="Cancel editing display name"
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+
+              {displayNameError ? (
+                <FieldError>{displayNameError}</FieldError>
+              ) : (
+                <FieldDescription>
+                  Press Enter to save or Escape to cancel.
+                </FieldDescription>
+              )}
+            </>
+          ) : (
+            <div className="rounded-lg border border-border/60 bg-background/35 px-3 py-2.5">
+              <p className="text-sm">
+                {user.display_name?.trim() || "No display name set"}
+              </p>
+            </div>
+          )}
+        </Field>
+
+        <Field>
+          <FieldLabel>Email address</FieldLabel>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background/35 px-3 py-2.5">
+            <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+              {user.email}
+            </p>
+
+            {user.email_verified ? (
+              <Badge
+                variant="secondary"
+                className="shrink-0 gap-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+              >
+                <BadgeCheck className="size-3.5" />
+                Verified
+              </Badge>
+            ) : (
+              <Badge
+                variant="secondary"
+                className="shrink-0 gap-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300"
+              >
+                <CircleAlert className="size-3.5" />
+                Unverified
+              </Badge>
+            )}
+          </div>
+
+          <FieldDescription>
+            Your email address cannot currently be changed.
+          </FieldDescription>
+        </Field>
+
+        <div className="border-t border-border/60 pt-4">
+          <p className="text-xs text-muted-foreground">
+            Account created {createdDate}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

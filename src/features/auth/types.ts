@@ -1,21 +1,14 @@
-/**
- * features/auth/types.ts
- * Field names/casing exactly as the backend sends/expects them (snake_case),
- * per 01-backend-reference.md "Database Schema / Entity Models" and
- * 02-api-reference.md "Identity & Auth".
- */
-
 export interface User {
-  id: string; // UUID
+  id: string;
   email: string;
   display_name: string | null;
-  email_verified: boolean; // NOT "email_verified_at"
-  created_at: string; // ISO 8601
+  email_verified: boolean;
+  created_at: string;
 }
 
 export interface SignupRequest {
   email: string;
-  password: string; // min 10 chars, enforced server-side
+  password: string;
 }
 
 export interface SignupResponse {
@@ -32,8 +25,8 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   access_token: string;
-  refresh_token: string; // issued but currently unusable - no /auth/refresh endpoint exists
-  expires_in: number; // seconds, 900 (15 min)
+  refresh_token: string;
+  expires_in: number;
 }
 
 export interface UpdateProfileRequest {

@@ -1,69 +1,81 @@
-/**
- * features/spaces/components/CollaboratorsList.tsx
- * Per 03-pages-and-features.md §6: role >= VIEWER to see, OWNER only to
- * manage. Shows email/role/accepted_at (always set immediately - invites
- * auto-accept, no pending/decline state - see 01-backend-reference.md
- * "SpaceCollaborator").
- *
- * NOTE: the API returns user_id, not email, per SpaceCollaborator's real
- * shape (01-backend-reference.md) - there is no user-lookup-by-id endpoint
- * documented, so email cannot be resolved/displayed for existing
- * collaborators without a further backend endpoint. Displaying user_id as
- * a fallback identifier here, flagged inline, rather than fabricating an
- * email field the API doesn't return.
- */
-import { useCollaboratorsQuery } from "../useSpaceQuery";
-import { EmptyState } from "../../../src/components/shared/EmptyState";
-import { PageErrorState } from "../../../src/components/shared/PageErrorState";
+import { UsersRound } from "lucide-react";
 
-interface CollaboratorsListProps {
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { PageErrorState } from "@/components/shared/PageErrorState";
+import { useCollaboratorsQuery } from "@/features/spaces/useSpaceQuery";
+
+type CollaboratorsListProps = {
   spaceId: string;
-}
+};
 
 export function CollaboratorsList({ spaceId }: CollaboratorsListProps) {
-  const { data, isLoading, isError, refetch } = useCollaboratorsQuery(spaceId);
+  const collaboratorsQuery = useCollaboratorsQuery(spaceId);
 
-  if (isLoading) {
+  if (collaboratorsQuery.isLoading) {
     return (
-      <div className="space-y-1">
-        {[...Array(2)].map((_, i) => (
-          <div key={i} className="h-8 animate-pulse rounded bg-muted" />
-        ))}
-      </div>
+      <Card className="border-border/70 bg-card/70">
+        <CardHeader className="pb-3">
+          <Skeleton className="h-5 w-32" />
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </CardContent>
+      </Card>
     );
   }
 
-  if (isError) {
+  if (collaboratorsQuery.isError) {
     return (
       <PageErrorState
         message="Couldn't load collaborators."
-        onRetry={() => refetch()}
+        onRetry={() => collaboratorsQuery.refetch()}
       />
     );
   }
 
-  if (data?.length === 0) {
-    return <EmptyState message="No collaborators yet" />;
-  }
+  const collaborators = collaboratorsQuery.data ?? [];
 
   return (
-    <ul className="space-y-1">
-      {data?.map((collaborator) => (
-        <li
-          key={collaborator.user_id}
-          className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-        >
-          <span
-            className="truncate text-xs text-muted-foreground"
-            title={collaborator.user_id}
-          >
-            {collaborator.user_id}
-          </span>
-          <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">
-            {collaborator.role}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <Card className="border-border/70 bg-card/70">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <UsersRound className="size-4 text-muted-foreground" />
+          Collaborators
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {collaborators.length === 0 ? (
+          <EmptyState message="No collaborators yet." />
+        ) : (
+          <div className="space-y-2">
+            {collaborators.map((collaborator) => (
+              <div
+                key={collaborator.user_id}
+                className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/40 p-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-xs text-muted-foreground">
+                    {collaborator.user_id}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Added{" "}
+                    {new Date(collaborator.accepted_at).toLocaleDateString(
+                      "en-IN",
+                    )}
+                  </p>
+                </div>
+                <Badge variant="secondary" className="shrink-0 text-[10px]">
+                  {collaborator.role}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

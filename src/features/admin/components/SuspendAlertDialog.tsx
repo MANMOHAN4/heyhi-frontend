@@ -1,50 +1,124 @@
-/**
- * features/admin/components/SuspendAlertDialog.tsx
- * Only suspend (not unsuspend) is gated behind this confirmation, per
- * 03-pages-and-features.md §9 - unsuspend is a corrective/reversible-in-
- * spirit action, suspend is the impactful one warranting friction.
- */
-interface SuspendAlertDialogProps {
-  userEmail: string;
+import { useEffect, useState } from "react";
+import { Loader2, ShieldAlert } from "lucide-react";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+
+import type { AdminUserView } from "@/features/admin/types";
+
+type SuspendAlertDialogProps = {
+  user: AdminUserView | null;
   open: boolean;
-  onConfirm: () => void;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (userId: string) => void;
   isPending: boolean;
-}
+};
 
 export function SuspendAlertDialog({
-  userEmail,
+  user,
   open,
+  onOpenChange,
   onConfirm,
-  onClose,
   isPending,
 }: SuspendAlertDialogProps) {
-  if (!open) return null;
+  const [confirmation, setConfirmation] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setConfirmation("");
+    }
+  }, [open]);
+
+  if (!user) {
+    return null;
+  }
+
+  const canSuspend =
+    confirmation.trim().toLowerCase() === user.email.toLowerCase();
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isPending) {
+      return;
+    }
+
+    onOpenChange(nextOpen);
+  };
+
+  const handleConfirm = () => {
+    if (!canSuspend || isPending) {
+      return;
+    }
+
+    onConfirm(user.id);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-80 rounded-lg border bg-popover p-4 shadow-lg">
-        <h2 className="font-semibold">Suspend {userEmail}?</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          This user's access will be immediately and silently revoked
-          everywhere. They can be unsuspended later.
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-md border px-3 py-1.5 text-sm"
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+            <ShieldAlert className="size-5" />
+            Suspend this user?
+          </AlertDialogTitle>
+
+          <AlertDialogDescription>
+            Suspending this account silently invalidates the user&apos;s active
+            access across heyHi. The user will receive normal unauthorized
+            behavior and no suspension-specific explanation.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-2">
+          <label
+            htmlFor="suspend-user-confirmation"
+            className="text-sm font-medium"
           >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
+            Type{" "}
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              {user.email}
+            </span>{" "}
+            to confirm
+          </label>
+
+          <Input
+            id="suspend-user-confirmation"
+            value={confirmation}
+            autoFocus
+            autoComplete="off"
             disabled={isPending}
-            className="rounded-md bg-destructive px-3 py-1.5 text-sm text-destructive-foreground disabled:opacity-50"
-          >
-            {isPending ? "Suspending…" : "Suspend"}
-          </button>
+            placeholder={user.email}
+            onChange={(event) => setConfirmation(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && canSuspend) {
+                event.preventDefault();
+                handleConfirm();
+              }
+            }}
+          />
         </div>
-      </div>
-    </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+
+          <AlertDialogAction
+            disabled={!canSuspend || isPending}
+            onClick={handleConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isPending && <Loader2 className="size-4 animate-spin" />}
+            Suspend user
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

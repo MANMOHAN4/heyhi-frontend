@@ -1,49 +1,108 @@
-/**
- * features/conversation/components/ModelSelect.tsx
- *
- * Per 02-api-reference.md "POST /threads": a non-"auto" model override is
- * silently ignored (falls back to default) for FREE-tier callers - NO error
- * is returned. Per 03-pages-and-features.md: do not rely on that
- * silent-ignore behavior to hide the control - check the user's
- * subscription plan client-side and only render non-"auto" options if the
- * plan is PRO/ENTERPRISE.
- *
- * Also per 02-api-reference.md "Models": no GET /models endpoint exists yet -
- * MODEL_IDS is hardcoded, temporary, backend-configuration knowledge. Flag
- * to backend if this drifts.
- */
-import { MODEL_IDS, type ModelId } from "../../../../lib/constants";
-import { useSubscriptionQuery } from "../../billing/useSubscriptionQuery";
+import { Bot } from "lucide-react";
 
-interface ModelSelectProps {
-  value: ModelId | string;
-  onChange: (model: string) => void;
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+import { useSubscriptionQuery } from "@/features/billing/useSubscriptionQuery";
+import { MODEL_IDS, type ModelId } from "@/lib/constants";
+
+type ModelSelectProps = {
+  value: string;
+  onValueChange: (model: string) => void;
   disabled?: boolean;
-}
+};
 
-export function ModelSelect({ value, onChange, disabled }: ModelSelectProps) {
-  const { data: subscription } = useSubscriptionQuery();
-  const canOverrideModel =
+const MODEL_LABELS: Record<ModelId, string> = {
+  auto: "Auto",
+  "groq-llama-3.3-70b": "Llama 3.3 70B",
+  "gemini-flash-latest": "Gemini Flash",
+};
+
+const MODEL_DESCRIPTIONS: Record<ModelId, string> = {
+  auto: "Automatically uses the default model.",
+  "groq-llama-3.3-70b":
+    "A capable general-purpose model for reasoning and writing.",
+  "gemini-flash-latest":
+    "A fast model for everyday questions and quick responses.",
+};
+
+export function ModelSelect({
+  value,
+  onValueChange,
+  disabled = false,
+}: ModelSelectProps) {
+  const { data: subscription, isLoading } = useSubscriptionQuery();
+
+  const canChooseModel =
     subscription?.plan === "PRO" || subscription?.plan === "ENTERPRISE";
 
-  if (!canOverrideModel) {
-    // Non-Pro users never see the control at all - "auto" is implicit.
+  /*
+   * Backend behavior:
+   * For FREE users, explicit model overrides are silently ignored and
+   * replaced by the backend default. Therefore, the selector is hidden
+   * entirely unless the subscription plan is PRO or ENTERPRISE.
+   */
+  if (isLoading || !canChooseModel) {
     return null;
   }
 
   return (
-    <select
-      className="rounded-md border bg-background px-2 py-1 text-xs"
+    <Select
       value={value}
       disabled={disabled}
-      aria-label="Model"
-      onChange={(e) => onChange(e.target.value)}
+      onValueChange={(nextValue) => {
+        if (nextValue) {
+          onValueChange(nextValue);
+        }
+      }}
     >
-      {MODEL_IDS.map((model) => (
-        <option key={model} value={model}>
-          {model}
-        </option>
-      ))}
-    </select>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <SelectTrigger
+              className="h-8 min-w-32 border-0 bg-muted/40 text-xs hover:bg-muted"
+              aria-label="Choose AI model"
+            >
+              <span className="flex min-w-0 items-center gap-1.5">
+                <Bot className="size-3.5 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Select model" />
+              </span>
+            </SelectTrigger>
+          }
+        />
+
+        <TooltipContent side="top">Choose an AI model</TooltipContent>
+      </Tooltip>
+
+      <SelectContent align="start" className="min-w-64">
+        <SelectGroup>
+          <SelectLabel>Available models</SelectLabel>
+
+          {MODEL_IDS.map((modelId) => (
+            <SelectItem key={modelId} value={modelId}>
+              <div className="flex flex-col gap-0.5 py-0.5">
+                <span className="text-sm">{MODEL_LABELS[modelId]}</span>
+
+                <span className="text-xs text-muted-foreground">
+                  {MODEL_DESCRIPTIONS[modelId]}
+                </span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   );
 }

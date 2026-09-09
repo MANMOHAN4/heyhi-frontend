@@ -1,37 +1,44 @@
-/**
- * features/billing/components/UpgradeButton.tsx
- * Per 03-pages-and-features.md §8: shown only if plan is FREE.
- */
-import { useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
-import { useRazorpayCheckout } from "../useRazorpayCheckout";
+import { Crown, Loader2 } from "lucide-react";
 
-export function UpgradeButton() {
-  const { openCheckout } = useRazorpayCheckout();
-  const [loading, setLoading] = useState(false);
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-  const handleClick = async () => {
-    setLoading(true);
-    try {
-      await openCheckout();
-    } finally {
-      setLoading(false);
-    }
-  };
+import { useRazorpayCheckout } from "@/features/billing/useRazorpayCheckout";
+
+type UpgradeButtonProps = {
+  className?: string;
+};
+
+export function UpgradeButton({ className }: UpgradeButtonProps) {
+  const { isOpening, openCheckout } = useRazorpayCheckout();
+
+  const button = (
+    <Button
+      type="button"
+      disabled={isOpening}
+      onClick={() => void openCheckout()}
+      className={`gap-2 bg-violet-600 text-white hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400 ${className ?? ""}`}
+    >
+      {isOpening ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <Crown className="size-4" />
+      )}
+
+      {isOpening ? "Opening checkout…" : "Upgrade to Pro"}
+    </Button>
+  );
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={loading}
-      className="flex items-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-    >
-      {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Sparkles className="h-4 w-4" />
-      )}
-      Upgrade to Pro
-    </button>
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipContent side="top">
+        Upgrade your heyHi account with Razorpay
+      </TooltipContent>
+    </Tooltip>
   );
 }

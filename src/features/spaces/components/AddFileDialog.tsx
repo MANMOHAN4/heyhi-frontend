@@ -1,84 +1,137 @@
-/**
- * features/spaces/components/AddFileDialog.tsx
- *
- * Per 03-pages-and-features.md §6: "pick from the user's own already-
- * uploaded files - note there's no dedicated 'list my files' endpoint
- * confirmed in the API; flagged as a real gap." Workaround implemented
- * here: upload a NEW file directly into the Space (upload -> then
- * POST /spaces/{id}/files with the returned file_id), since that's the
- * only reliable path available without a file-listing endpoint. If/when
- * a "list my files" endpoint ships, replace this with a real picker.
- */
 import { useRef, useState } from "react";
-import { X, Upload, Loader2 } from "lucide-react";
-import { useFileUpload } from "../../files/useFileUpload";
-import { useAddFileToSpace } from "../useSpaceMutations";
+import { FilePlus2, Loader2 } from "lucide-react";
 
-interface AddFileDialogProps {
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { useFileUpload } from "@/features/files/useFileUpload";
+import { useAddFileToSpace } from "@/features/spaces/useSpaceMutations";
+
+const ACCEPTED_TYPES =
+  ".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+
+export type AddFileDialogProps = {
   spaceId: string;
   open: boolean;
-  onClose: () => void;
-}
+  onOpenChange: (open: boolean) => void;
+  onUploaded?: (
+    file: Awaited<ReturnType<ReturnType<typeof useFileUpload>["mutateAsync"]>>,
+  ) => void;
+};
 
-export function AddFileDialog({ spaceId, open, onClose }: AddFileDialogProps) {
+export function AddFileDialog({
+  spaceId,
+  open,
+  onOpenChange,
+  onUploaded,
+}: AddFileDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const upload = useFileUpload();
-  const addFileToSpace = useAddFileToSpace(spaceId);
-  const [busy, setBusy] = useState(false);
+  const uploadMutation = useFileUpload();
+  const addFileMutation = useAddFileToSpace(spaceId);
+  const [progress, setProgress] = useState(0);
+  const [fileName, setFileName] = useState<string | null>(null);
 
-  if (!open) return null;
+  const isBusy = uploadMutation.isPending || addFileMutation.isPending;
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-    setBusy(true);
+
+    setFileName(file.name);
+    setProgress(20);
+
     try {
-      const uploaded = await upload.mutateAsync(file);
-      await addFileToSpace.mutateAsync(uploaded.id);
-      onClose();
+      const uploaded = await uploadMutation.mutateAsync(file);
+      setProgress(70);
+      await addFileMutation.mutateAsync(uploaded.id);
+      setProgress(100);
+      onUploaded?.(uploaded);
+      onOpenChange(false);
     } finally {
-      setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
+      window.setTimeout(() => {
+        setProgress(0);
+        setFileName(null);
+      }, 250);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-lg border bg-popover p-4 shadow-lg">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">Add a file to this Space</h2>
-          <button onClick={onClose} aria-label="Close">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isBusy && !nextOpen) return;
+    onOpenChange(nextOpen);
+  };
 
-        <p className="mb-3 text-xs text-muted-foreground">
-          Upload a PDF, DOCX, or plain text file (up to 25MB). It will be shared
-          with everyone in this Space.
-        </p>
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add a document</DialogTitle>
+          <DialogDescription>
+            Upload a PDF, DOCX, or plain text document up to 25 MB. It will be
+            available to this Space.
+          </DialogDescription>
+        </DialogHeader>
 
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+          accept={ACCEPTED_TYPES}
           className="hidden"
-          disabled={busy}
-          onChange={handleFileSelect}
+          disabled={isBusy}
+          onChange={handleSelect}
         />
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => inputRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
-        >
-          {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Upload className="h-4 w-4" />
+
+        <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-6 text-center">
+          <FilePlus2 className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-3 text-sm font-medium">
+            {fileName ?? "Choose a document to upload"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            PDF, DOCX, or TXT · max 25 MB
+          </p>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4"
+            disabled={isBusy}
+            onClick={() => inputRef.current?.click()}
+          >
+            {isBusy && <Loader2 className="size-4 animate-spin" />}
+            {isBusy ? "Uploading…" : "Choose file"}
+          </Button>
+
+          {isBusy && (
+            <div className="mt-5 space-y-2 text-left">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>
+                  {addFileMutation.isPending ? "Adding to Space" : "Uploading"}
+                </span>
+                <span>{progress}%</span>
+              </div>
+              <Progress value={progress} />
+            </div>
           )}
-          {busy ? "Uploading…" : "Choose file"}
-        </button>
-      </div>
-    </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={isBusy}
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

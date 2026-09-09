@@ -1,80 +1,169 @@
-/**
- * features/settings/components/DeleteAccountDialog.tsx
- * Per 03-pages-and-features.md §7 "Danger zone": strongly-worded Alert
- * Dialog. Typing the email to confirm is a reasonable extra safeguard (not
- * required by the API, but good practice for a destructive, irreversible
- * action). On success (202, see 02-api-reference.md "DELETE /users/me"),
- * immediately clear local auth state and redirect to /login.
- */
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Loader2, TriangleAlert } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
-import { deleteMe } from "../../auth/api";
-import { useAuthStore } from "../../auth/useAuthStore";
 import { toast } from "sonner";
 
-interface DeleteAccountDialogProps {
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+
+import { deleteMyAccount } from "@/features/settings/api";
+import { useAuthStore } from "@/features/auth/useAuthStore";
+import { ApiError } from "@/lib/apiError";
+
+type DeleteAccountDialogProps = {
   userEmail: string;
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
+};
+
+function getDeleteAccountErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401 || error.code === "UNAUTHORIZED") {
+      return "Your session has expired. Please sign in again.";
+    }
+
+    return error.message || "Couldn't delete your account.";
+  }
+
+  return "Couldn't delete your account. Please try again.";
 }
 
 export function DeleteAccountDialog({
   userEmail,
   open,
-  onClose,
+  onOpenChange,
 }: DeleteAccountDialogProps) {
-  const [confirmText, setConfirmText] = useState("");
-  const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const logout = useAuthStore((state) => state.logout);
 
-  const mutation = useMutation({
-    mutationFn: deleteMe,
+  const [confirmation, setConfirmation] = useState("");
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: deleteMyAccount,
+
     onSuccess: () => {
+      /*
+       * The backend returns 202 Accepted. The specification says to treat
+       * this as immediate deletion on the frontend: clear in-memory tokens,
+       * clear account-scoped cache, then leave the authenticated app.
+       */
       logout();
+      queryClient.clear();
+
+      setConfirmation("");
+      onOpenChange(false);
+
+      toast.success("Your account has been deleted.");
       navigate("/login", { replace: true });
     },
-    onError: () =>
-      toast.error("Couldn't delete your account. Please try again."),
+
+    onError: (error) => {
+      toast.error(getDeleteAccountErrorMessage(error));
+    },
   });
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) {
+      setConfirmation("");
+      deleteAccountMutation.reset();
+    }
+  }, [open]);
 
-  const canConfirm = confirmText === userEmail;
+  const handleOpenChange = (nextOpen: boolean) => {
+    /*
+     * Keep the destructive confirmation focused while the request is active.
+     */
+    if (!nextOpen && deleteAccountMutation.isPending) {
+      return;
+    }
+
+    onOpenChange(nextOpen);
+  };
+
+  const canDelete =
+    confirmation.trim().toLowerCase() === userEmail.toLowerCase();
+
+  const handleDelete = () => {
+    if (!canDelete || deleteAccountMutation.isPending) {
+      return;
+    }
+
+    deleteAccountMutation.mutate();
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-lg border bg-popover p-4 shadow-lg">
-        <h2 className="font-semibold text-destructive">Delete your account</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          This permanently deletes your account, threads, Spaces, and uploaded
-          files. This action cannot be undone.
-        </p>
-        <p className="mt-3 text-xs font-medium">
-          Type <span className="font-mono">{userEmail}</span> to confirm.
-        </p>
-        <input
-          value={confirmText}
-          onChange={(e) => setConfirmText(e.target.value)}
-          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-          autoComplete="off"
-        />
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-md border px-3 py-1.5 text-sm"
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+            <TriangleAlert className="size-5" />
+            Delete your account?
+          </AlertDialogTitle>
+
+          <AlertDialogDescription>
+            This permanently deletes your heyHi account and removes your
+            conversation history, Spaces, uploaded documents, billing data, and
+            associated access. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-2">
+          <label
+            htmlFor="delete-account-confirmation"
+            className="text-sm font-medium"
           >
-            Cancel
-          </button>
-          <button
-            onClick={() => mutation.mutate()}
-            disabled={!canConfirm || mutation.isPending}
-            className="rounded-md bg-destructive px-3 py-1.5 text-sm text-destructive-foreground disabled:opacity-50"
-          >
-            {mutation.isPending ? "Deleting…" : "Delete my account"}
-          </button>
+            Type{" "}
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              {userEmail}
+            </span>{" "}
+            to confirm
+          </label>
+
+          <Input
+            id="delete-account-confirmation"
+            value={confirmation}
+            autoFocus
+            autoComplete="off"
+            disabled={deleteAccountMutation.isPending}
+            placeholder={userEmail}
+            onChange={(event) => setConfirmation(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && canDelete) {
+                event.preventDefault();
+                handleDelete();
+              }
+            }}
+          />
         </div>
-      </div>
-    </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleteAccountMutation.isPending}>
+            Cancel
+          </AlertDialogCancel>
+
+          <AlertDialogAction
+            disabled={!canDelete || deleteAccountMutation.isPending}
+            onClick={handleDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {deleteAccountMutation.isPending && (
+              <Loader2 className="size-4 animate-spin" />
+            )}
+            Delete account
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

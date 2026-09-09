@@ -1,19 +1,24 @@
-/**
- * features/billing/useSubscriptionQuery.ts
- * Used both by the dedicated Billing page and by ModelSelect (to decide
- * whether to show model-override options at all).
- */
 import { useQuery } from "@tanstack/react-query";
-import { getSubscription } from "./api";
-import { useAuthStore } from "../auth/useAuthStore";
 
+import { useAuthStore } from "@/features/auth/useAuthStore";
+import { getSubscription } from "@/features/billing/api";
+
+/*
+ * Used by:
+ * - Billing page plan card
+ * - Upgrade button visibility
+ * - Conversation ModelSelect, to show model overrides only to PRO/ENTERPRISE
+ *
+ * It does not run for guests because billing endpoints require JWT auth.
+ */
 export function useSubscriptionQuery() {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
     queryKey: ["billing", "subscription"],
     queryFn: getSubscription,
-    enabled: !!accessToken,
-    staleTime: 60_000,
+    enabled: Boolean(accessToken),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
   });
 }

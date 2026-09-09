@@ -1,95 +1,147 @@
-/**
- * features/spaces/components/InviteCollaboratorDialog.tsx
- * Per 03-pages-and-features.md §6: OWNER only. email + role Select
- * (editor/viewer, LOWERCASE in the request per the documented casing
- * quirk - see 02-api-reference.md "POST /spaces/{id}/collaborators").
- * Handles 404 USER_NOT_FOUND inline via useInviteCollaborator's shared
- * error-message mapping.
- */
 import { useState } from "react";
-import { X } from "lucide-react";
-import { useInviteCollaborator } from "../useSpaceMutations";
+import { Loader2, UserPlus } from "lucide-react";
 
-interface InviteCollaboratorDialogProps {
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useInviteCollaborator } from "@/features/spaces/useSpaceMutations";
+
+export type InviteCollaboratorDialogProps = {
   spaceId: string;
   open: boolean;
-  onClose: () => void;
-}
+  onOpenChange: (open: boolean) => void;
+};
 
 export function InviteCollaboratorDialog({
   spaceId,
   open,
-  onClose,
+  onOpenChange,
 }: InviteCollaboratorDialogProps) {
+  const inviteMutation = useInviteCollaborator(spaceId);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"editor" | "viewer">("viewer");
-  const invite = useInviteCollaborator(spaceId);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
-  if (!open) return null;
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    invite.mutate(
-      { email: email.trim(), role },
+    const trimmedEmail = email.trim();
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+
+    if (!isValidEmail) {
+      setEmailError("Enter a valid email address.");
+      return;
+    }
+
+    setEmailError(null);
+
+    inviteMutation.mutate(
+      { email: trimmedEmail, role },
       {
         onSuccess: () => {
           setEmail("");
-          onClose();
+          setRole("viewer");
+          onOpenChange(false);
         },
       },
     );
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (inviteMutation.isPending && !nextOpen) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-lg border bg-popover p-4 shadow-lg">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">Invite a collaborator</h2>
-          <button onClick={onClose} aria-label="Close">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="size-4" />
+            Invite collaborator
+          </DialogTitle>
+          <DialogDescription>
+            Invites are accepted immediately. The collaborator will be able to
+            access this Space according to the selected role.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1">
-            <label htmlFor="invite-email" className="text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="invite-email"
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <Field data-invalid={Boolean(emailError)}>
+            <FieldLabel htmlFor="collaborator-email">Email address</FieldLabel>
+            <Input
+              id="collaborator-email"
               type="email"
-              required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              autoFocus
+              placeholder="person@example.com"
+              aria-invalid={Boolean(emailError)}
+              onChange={(event) => setEmail(event.target.value)}
             />
-          </div>
+            {emailError ? (
+              <FieldError>{emailError}</FieldError>
+            ) : (
+              <FieldDescription>
+                The account must already exist.
+              </FieldDescription>
+            )}
+          </Field>
 
-          <div className="space-y-1">
-            <label htmlFor="invite-role" className="text-sm font-medium">
-              Role
-            </label>
-            <select
-              id="invite-role"
+          <Field>
+            <FieldLabel htmlFor="collaborator-role">Role</FieldLabel>
+            <Select
               value={role}
-              onChange={(e) => setRole(e.target.value as "editor" | "viewer")}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              disabled={inviteMutation.isPending}
+              onValueChange={(value) => setRole(value as "editor" | "viewer")}
             >
-              <option value="viewer">Viewer</option>
-              <option value="editor">Editor</option>
-            </select>
-          </div>
+              <SelectTrigger id="collaborator-role">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="viewer">Viewer — can read</SelectItem>
+                <SelectItem value="editor">Editor — can modify</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
 
-          <button
-            type="submit"
-            disabled={invite.isPending || !email.trim()}
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-          >
-            {invite.isPending ? "Inviting…" : "Invite"}
-          </button>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={inviteMutation.isPending}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={inviteMutation.isPending}>
+              {inviteMutation.isPending && (
+                <Loader2 className="size-4 animate-spin" />
+              )}
+              Invite collaborator
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

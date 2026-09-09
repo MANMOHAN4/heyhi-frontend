@@ -1,7 +1,8 @@
-/**
- * features/admin/types.ts
- * Per 01-backend-reference.md "AdminUserView" / "AuditLogEntry" /
- * "FlaggedQuery", admin-only shapes.
+/*
+ * Admin-only backend response shapes.
+ *
+ * Every endpoint below requires an administrator JWT. The backend returns
+ * 404 for non-admin callers deliberately, rather than 401/403.
  */
 
 export interface AdminUserView {
@@ -14,27 +15,27 @@ export interface AdminUserView {
 
 export interface AuditLogEntry {
   admin_user_id: string;
-  action: string; // e.g. "SUSPEND_USER", "UNSUSPEND_USER"
+  action: string;
   target_user_id: string | null;
   created_at: string;
 }
 
 export interface FlaggedQuery {
   id: string;
-  user_id: string | null; // null for a guest's flagged query
+  user_id: string | null;
   query_text: string;
-  reason: string; // e.g. "blocklist_match"
+  reason: string;
   flagged_at: string;
   reviewed_at: string | null;
   reviewer_id: string | null;
 }
 
-export interface DependencyHealth {
-  status: "UP" | "DOWN" | string;
-  [key: string]: unknown;
+export interface HealthComponent {
+  status: string;
+  details?: Record<string, unknown>;
 }
 
 export interface HealthResponse {
-  status: "UP" | "DOWN" | string;
-  components?: Record<string, DependencyHealth>;
+  status: string;
+  components?: Record<string, HealthComponent>;
 }

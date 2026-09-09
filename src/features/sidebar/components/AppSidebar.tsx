@@ -1,179 +1,478 @@
-/**
- * features/sidebar/components/AppSidebar.tsx
- *
- * FIX (black overlay bug): the previous version always rendered the mobile
- * drawer's <div> tree (including its bg-black/40 backdrop) whenever
- * `mobileOpen` was true, with NO check on viewport width - so on a desktop
- * viewport, if `mobileOpen` was ever set true (e.g. a stray click, or React
- * StrictMode double-invoking a handler in dev), the backdrop rendered
- * ON TOP OF the already-visible desktop sidebar, producing exactly the
- * "black panel over half the screen" seen in the screenshot. There was
- * also no Escape-key handling and no body-scroll-lock, both of which the
- * previous version lacked.
- *
- * FIX: the drawer now (1) only ever mounts when mobileOpen is true AND
- * (2) is unconditionally hidden at md+ widths via `md:hidden` on the
- * wrapping element itself (not just the trigger button), so even if
- * mobileOpen were somehow true on desktop, Tailwind's responsive class
- * keeps it not-displayed. Escape-to-close and click-outside-to-close are
- * both wired. This is still a placeholder for shadcn's real Sidebar/Sheet
- * (see 04-nonfunctional-and-deployment.md) but is now behaviorally correct.
- */
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
-import { Plus, Search, Menu, X } from "lucide-react";
-import { useAuthStore } from "../../auth/useAuthStore";
-import { useThreadsQuery } from "../../conversation/useThreadsQuery";
-import { useSpacesQuery } from "../../spaces/useSpacesQuery";
-import { useThreadSearch } from "../useThreadSearch";
-import { ThreadListItem } from "./ThreadListItem";
-import { SpaceListItem } from "./SpaceListItem";
-import { UserMenu } from "./UserMenu";
-import { GuestPrompt } from "./GuestPrompt";
-import { PageErrorState } from "../../../src/components/shared/PageErrorState";
-import { EmptyState } from "../../../src/components/shared/EmptyState";
+import { MessageSquarePlus, PanelLeft, Search, Sparkles } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const { inputValue, setInputValue, debouncedValue } = useThreadSearch();
-  const threadsQuery = useThreadsQuery(debouncedValue);
+import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { EmptyState } from "@/components/shared/EmptyState";
+import { PageErrorState } from "@/components/shared/PageErrorState";
+import { useAuthStore } from "@/features/auth/useAuthStore";
+import { useSpacesQuery } from "@/features/spaces/useSpacesQuery";
+import { CommandPalette } from "@/features/sidebar/components/CommandPalette";
+import { SidebarSpaceItem } from "@/features/sidebar/components/SidebarSpaceItem";
+import { SidebarThreadItem } from "@/features/sidebar/components/SidebarThreadItem";
+import { UserMenu } from "@/features/sidebar/components/UserMenu";
+import { useThreadSearch } from "@/features/sidebar/useThreadSearch";
+
+type AppSidebarProps = {
+  children: React.ReactNode;
+};
+
+export function AppSidebar({ children }: AppSidebarProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const location = useLocation();
+
+  /*
+   * Closing the mobile Sheet on navigation avoids leaving an overlay active
+   * after the user selects a conversation/Space.
+   */
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  return (
+    <SidebarProvider
+      open={sidebarOpen}
+      onOpenChange={setSidebarOpen}
+      defaultOpen
+    >
+      <DesktopSidebar onOpenCommand={() => setCommandOpen(true)} />
+
+      <SidebarInset className="min-w-0 bg-background">
+        <div className="flex h-12 shrink-0 items-center border-b border-border/70 px-3 md:hidden">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Open navigation"
+            onClick={() => setMobileOpen(true)}
+          >
+            <PanelLeft className="size-4" />
+          </Button>
+
+          <Link
+            to="/"
+            className="ml-2 text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            heyHi
+          </Link>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-auto gap-1.5 text-xs"
+            onClick={() => setCommandOpen(true)}
+          >
+            <Search className="size-3.5" />
+            Search
+          </Button>
+        </div>
+
+        {children}
+      </SidebarInset>
+
+      <MobileSidebar open={mobileOpen} onOpenChange={setMobileOpen} />
+
+      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+    </SidebarProvider>
+  );
+}
+
+type DesktopSidebarProps = {
+  onOpenCommand: () => void;
+};
+
+function DesktopSidebar({ onOpenCommand }: DesktopSidebarProps) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  const {
+    searchInput,
+    setSearchInput,
+    threads,
+    isLoading: threadsLoading,
+    isError: threadsError,
+    refetch: refetchThreads,
+  } = useThreadSearch();
+
   const spacesQuery = useSpacesQuery();
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 p-2">
-        <NavLink
-          to="/"
-          onClick={onNavigate}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+    <Sidebar
+      collapsible="icon"
+      className="hidden border-r border-sidebar-border md:flex"
+    >
+      <SidebarHeader className="gap-3 px-3 py-4">
+        <div className="flex items-center gap-2 px-1">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+            <Sparkles className="size-4" />
+          </div>
+
+          <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
+            heyHi
+          </span>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2 bg-sidebar-accent/35"
+          render={<Link to="/" />}
         >
-          <Plus className="h-3.5 w-3.5" /> New Thread
-        </NavLink>
-      </div>
+          <MessageSquarePlus className="size-4" />
+          <span>New conversation</span>
+        </Button>
 
-      {!accessToken ? (
-        <GuestPrompt />
-      ) : (
-        <>
-          <div className="relative px-2">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Search threads…"
-              className="w-full rounded-md border bg-background py-1.5 pl-7 pr-2 text-sm"
-              aria-label="Search threads"
-            />
+        {accessToken && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full justify-between border border-sidebar-border/70 bg-sidebar-accent/20 text-muted-foreground hover:bg-sidebar-accent"
+            onClick={onOpenCommand}
+          >
+            <span className="flex items-center gap-2">
+              <Search className="size-3.5" />
+              Search
+            </span>
+
+            <span className="flex items-center gap-1">
+              <Kbd>⌘</Kbd>
+              <Kbd>K</Kbd>
+            </span>
+          </Button>
+        )}
+      </SidebarHeader>
+
+      <Separator />
+
+      <SidebarContent className="px-2 py-2">
+        {!accessToken ? (
+          <GuestSidebarContent />
+        ) : (
+          <>
+            <SidebarGroup className="p-0">
+              <SidebarGroupLabel className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Conversations
+              </SidebarGroupLabel>
+
+              <SidebarGroupContent>
+                <div className="mb-2 px-1">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+
+                    <input
+                      value={searchInput}
+                      onChange={(event) => setSearchInput(event.target.value)}
+                      placeholder="Search history…"
+                      className="h-8 w-full rounded-md border border-sidebar-border bg-sidebar-accent/30 pl-8 pr-2 text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                      aria-label="Search conversations"
+                    />
+                  </div>
+                </div>
+
+                {threadsLoading && <ThreadListSkeleton />}
+
+                {threadsError && (
+                  <div className="px-1 py-2">
+                    <PageErrorState
+                      message="Couldn't load conversations."
+                      onRetry={() => refetchThreads()}
+                    />
+                  </div>
+                )}
+
+                {!threadsLoading && !threadsError && threads.length === 0 && (
+                  <div className="px-1 py-2">
+                    <EmptyState message="No conversations yet" />
+                  </div>
+                )}
+
+                {!threadsLoading && !threadsError && threads.length > 0 && (
+                  <SidebarMenu>
+                    {threads.map((thread) => (
+                      <SidebarMenuItem key={thread.id}>
+                        <SidebarThreadItem thread={thread} />
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                )}
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <Separator className="my-3" />
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupLabel className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Spaces
+              </SidebarGroupLabel>
+
+              <SidebarGroupContent>
+                {spacesQuery.isLoading && <SpaceListSkeleton />}
+
+                {spacesQuery.isError && (
+                  <div className="px-1 py-2">
+                    <PageErrorState
+                      message="Couldn't load Spaces."
+                      onRetry={() => spacesQuery.refetch()}
+                    />
+                  </div>
+                )}
+
+                {!spacesQuery.isLoading &&
+                  !spacesQuery.isError &&
+                  spacesQuery.data?.length === 0 && (
+                    <div className="px-1 py-2">
+                      <EmptyState message="No Spaces yet" />
+                    </div>
+                  )}
+
+                {!spacesQuery.isLoading &&
+                  !spacesQuery.isError &&
+                  (spacesQuery.data?.length ?? 0) > 0 && (
+                    <SidebarMenu>
+                      {spacesQuery.data?.map((space) => (
+                        <SidebarMenuItem key={space.id}>
+                          <SidebarSpaceItem space={space} />
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  )}
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
+      </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border p-2">
+        {accessToken ? <UserMenu /> : <GuestFooter />}
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
+
+type MobileSidebarProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  const {
+    searchInput,
+    setSearchInput,
+    threads,
+    isLoading: threadsLoading,
+    isError: threadsError,
+    refetch: refetchThreads,
+  } = useThreadSearch();
+
+  const spacesQuery = useSpacesQuery();
+
+  const closeSheet = () => onOpenChange(false);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="left"
+        className="flex w-[19rem] max-w-[85vw] flex-col p-0"
+      >
+        <SheetHeader className="border-b p-4 text-left">
+          <SheetTitle className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Sparkles className="size-3.5" />
+            </span>
+            heyHi
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="p-3">
+          <Button
+            className="w-full justify-start gap-2"
+            render={<Link to="/" onClick={closeSheet} />}
+          >
+            <MessageSquarePlus className="size-4" />
+            New conversation
+          </Button>
+        </div>
+
+        {!accessToken ? (
+          <div className="px-3">
+            <GuestSidebarContent />
           </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+            <div className="mb-4">
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Conversations
+              </p>
 
-          <div className="flex-1 overflow-y-auto px-2 py-2">
-            <p className="px-2 pb-1 text-xs font-medium uppercase text-muted-foreground">
-              Threads
-            </p>
-            {threadsQuery.isLoading && (
-              <div className="space-y-1 px-2">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-6 animate-pulse rounded bg-muted" />
-                ))}
+              <div className="relative mb-2">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+
+                <input
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search history…"
+                  className="h-9 w-full rounded-md border bg-muted/30 pl-8 pr-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Search conversations"
+                />
               </div>
-            )}
-            {threadsQuery.isError && (
-              <PageErrorState
-                message="Couldn't load your threads."
-                onRetry={() => threadsQuery.refetch()}
-              />
-            )}
-            {threadsQuery.data?.length === 0 && (
-              <EmptyState message="Start your first conversation" />
-            )}
-            {threadsQuery.data?.map((thread) => (
-              <ThreadListItem key={thread.id} thread={thread} />
-            ))}
 
-            <p className="mt-4 px-2 pb-1 text-xs font-medium uppercase text-muted-foreground">
-              Spaces
-            </p>
-            {spacesQuery.data?.length === 0 && (
-              <EmptyState message="Create your first Space" />
-            )}
-            {spacesQuery.data?.map((space) => (
-              <SpaceListItem key={space.id} space={space} />
-            ))}
+              {threadsLoading && <ThreadListSkeleton />}
+
+              {threadsError && (
+                <PageErrorState
+                  message="Couldn't load conversations."
+                  onRetry={() => refetchThreads()}
+                />
+              )}
+
+              {!threadsLoading && !threadsError && threads.length === 0 && (
+                <EmptyState message="No conversations yet" />
+              )}
+
+              {!threadsLoading && !threadsError && threads.length > 0 && (
+                <div className="space-y-0.5">
+                  {threads.map((thread) => (
+                    <SidebarThreadItem
+                      key={thread.id}
+                      thread={thread}
+                      onNavigate={closeSheet}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Separator className="my-4" />
+
+            <div>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Spaces
+              </p>
+
+              {spacesQuery.isLoading && <SpaceListSkeleton />}
+
+              {spacesQuery.isError && (
+                <PageErrorState
+                  message="Couldn't load Spaces."
+                  onRetry={() => spacesQuery.refetch()}
+                />
+              )}
+
+              {!spacesQuery.isLoading &&
+                !spacesQuery.isError &&
+                spacesQuery.data?.length === 0 && (
+                  <EmptyState message="No Spaces yet" />
+                )}
+
+              {!spacesQuery.isLoading &&
+                !spacesQuery.isError &&
+                (spacesQuery.data?.length ?? 0) > 0 && (
+                  <div className="space-y-0.5">
+                    {spacesQuery.data?.map((space) => (
+                      <SidebarSpaceItem
+                        key={space.id}
+                        space={space}
+                        onNavigate={closeSheet}
+                      />
+                    ))}
+                  </div>
+                )}
+            </div>
           </div>
+        )}
 
-          <UserMenu />
-        </>
-      )}
+        <div className="border-t p-2">
+          {accessToken ? <UserMenu onNavigate={closeSheet} /> : <GuestFooter />}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function GuestSidebarContent() {
+  return (
+    <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/25 p-3">
+      <p className="text-sm font-medium text-sidebar-foreground">
+        Save your research
+      </p>
+
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Sign in to keep conversations, upload documents, and create Spaces.
+      </p>
+
+      <div className="mt-3 flex gap-2">
+        <Button size="sm" className="flex-1" render={<Link to="/signup" />}>
+          Sign up
+        </Button>
+
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1"
+          render={<Link to="/login" />}
+        >
+          Log in
+        </Button>
+      </div>
     </div>
   );
 }
 
-export function AppSidebar() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  // Escape-to-close + body-scroll-lock while the mobile drawer is open.
-  useEffect(() => {
-    if (!mobileOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileOpen(false);
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [mobileOpen]);
-
+function GuestFooter() {
   return (
-    <>
-      {/* Desktop sidebar - always visible at md+, never rendered below it */}
-      <aside className="hidden w-64 shrink-0 border-r md:block">
-        <SidebarContent />
-      </aside>
+    <Button
+      variant="ghost"
+      className="w-full justify-start text-muted-foreground"
+      render={<Link to="/login" />}
+    >
+      Log in to your account
+    </Button>
+  );
+}
 
-      {/* Mobile hamburger trigger - only rendered below md */}
-      <button
-        type="button"
-        onClick={() => setMobileOpen(true)}
-        aria-label="Open menu"
-        className="fixed left-2 top-2 z-30 rounded-md border bg-background p-2 shadow-sm md:hidden"
-      >
-        <Menu className="h-4 w-4" />
-      </button>
+function ThreadListSkeleton() {
+  return (
+    <div className="space-y-1 px-1">
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-8 w-[86%]" />
+      <Skeleton className="h-8 w-[72%]" />
+    </div>
+  );
+}
 
-      {/*
-        Mobile drawer: gated on BOTH mobileOpen AND md:hidden, so it is
-        never simultaneously visible with the desktop <aside> above,
-        regardless of state - this is what fixes the black-overlay bug.
-      */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 flex md:hidden"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="relative z-10 flex h-full w-72 flex-col bg-background shadow-lg">
-            <div className="flex justify-end p-2">
-              <button
-                onClick={() => setMobileOpen(false)}
-                aria-label="Close menu"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <SidebarContent onNavigate={() => setMobileOpen(false)} />
-          </div>
-        </div>
-      )}
-    </>
+function SpaceListSkeleton() {
+  return (
+    <div className="space-y-1 px-1">
+      <Skeleton className="h-8 w-[84%]" />
+      <Skeleton className="h-8 w-[68%]" />
+    </div>
   );
 }

@@ -1,119 +1,133 @@
-/**
- * features/auth/components/LoginForm.tsx
- * Per 03-pages-and-features.md "/login":
- *  - 401 -> single generic "Invalid email or password" - never attempt to
- *    distinguish wrong-password from nonexistent-email (backend is
- *    deliberately identical for both, see 01-backend-reference.md).
- *  - On success: store tokens + user, redirect to "/".
- */
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { login, getMe } from "../api";
-import { useAuthStore } from "../useAuthStore";
-import { ApiError } from "../../../../lib/apiError";
 
-interface LoginFormValues {
-  email: string;
-  password: string;
-}
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ApiError } from "@/lib/apiError";
+
+import { login } from "../api";
+import { useAuthStore } from "../useAuthStore";
 
 export function LoginForm() {
-  const [serverError, setServerError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const storeLogin = useAuthStore((s) => s.login);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginFormValues>();
+  const storeLogin = useAuthStore((state) => state.storeLogin);
 
-  const mutation = useMutation({
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const loginMutation = useMutation({
     mutationFn: login,
-    onSuccess: async (tokens) => {
-      setServerError(null);
-      // apiFetch reads the token from the auth store, so we must set the
-      // access token before calling getMe(). Store a temporary token first,
-      // then replace with the full {token, user} once profile is fetched.
-      storeLogin(tokens.access_token, {
-        id: "",
-        email: "",
-        display_name: null,
-        email_verified: false,
-        created_at: "",
-      });
-      try {
-        const user = await getMe();
-        storeLogin(tokens.access_token, user);
-        navigate("/", { replace: true });
-      } catch {
-        // If /users/me somehow fails right after a successful login,
-        // still proceed - the app shell will refetch profile data as needed.
-        navigate("/", { replace: true });
-      }
+
+    onSuccess: (tokens) => {
+      /*
+       * Your store accepts only the access token.
+       *
+       * The backend login response provides:
+       * access_token, refresh_token, expires_in.
+       */
+      storeLogin(tokens.access_token);
+
+      navigate("/", { replace: true });
     },
-    onError: (err) => {
-      if (err instanceof ApiError && err.code === "INVALID_CREDENTIALS") {
+
+    onError: (error: unknown) => {
+      if (error instanceof ApiError && error.code === "INVALID_CREDENTIALS") {
         setServerError("Invalid email or password.");
         return;
       }
-      setServerError("Something went wrong. Please try again.");
+
+      setServerError(
+        error instanceof Error
+          ? error.message
+          : "Unable to sign in. Please try again.",
+      );
     },
   });
 
-  const onSubmit = (values: LoginFormValues) => mutation.mutate(values);
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail || !password) {
+      setServerError("Enter your email and password.");
+      return;
+    }
+
+    setServerError(null);
+
+    loginMutation.mutate({
+      email: normalizedEmail,
+      password,
+    });
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-      <div className="space-y-1.5">
-        <label htmlFor="email" className="text-sm font-medium">
-          Email
-        </label>
-        <input
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+
+        <Input
           id="email"
+          name="email"
           type="email"
           autoComplete="email"
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          aria-invalid={!!errors.email}
-          {...register("email", { required: "Email is required" })}
+          placeholder="you@example.com"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+          }}
+          disabled={loginMutation.isPending}
+          required
         />
-        {errors.email && (
-          <p className="text-sm text-destructive">{errors.email.message}</p>
-        )}
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="password" className="text-sm font-medium">
-          Password
-        </label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+
+        <Input
           id="password"
+          name="password"
           type="password"
           autoComplete="current-password"
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          aria-invalid={!!errors.password}
-          {...register("password", { required: "Password is required" })}
+          placeholder="Your password"
+          value={password}
+          onChange={(event) => {
+            setPassword(event.target.value);
+          }}
+          disabled={loginMutation.isPending}
+          required
         />
-        {errors.password && (
-          <p className="text-sm text-destructive">{errors.password.message}</p>
-        )}
       </div>
 
-      {serverError && (
-        <p role="alert" className="text-sm text-destructive">
+      {serverError ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
           {serverError}
         </p>
-      )}
+      ) : null}
 
-      <button
+      <Button
         type="submit"
-        disabled={isSubmitting || mutation.isPending}
-        className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+        className="w-full"
+        disabled={loginMutation.isPending}
       >
-        {mutation.isPending ? "Signing in…" : "Sign in"}
-      </button>
+        {loginMutation.isPending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Signing in…
+          </>
+        ) : (
+          "Sign in"
+        )}
+      </Button>
     </form>
   );
 }

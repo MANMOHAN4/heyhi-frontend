@@ -1,106 +1,133 @@
-/**
- * features/spaces/components/NewSpaceDialog.tsx
- * Per 03-pages-and-features.md §6: name + custom_instructions (Textarea,
- * show remaining chars toward the 4000 limit) -> POST /spaces.
- * On success, the caller is always OWNER - recorded via useSpaceRole.
- *
- * NOTE: swap the plain modal below for shadcn's real `Dialog`
- * (`npx shadcn@latest add dialog`) once installed.
- */
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useCreateSpace } from "../useSpaceMutations";
-import { useSpaceRoleStore } from "../useSpaceRole";
-import { SPACE_INSTRUCTIONS_MAX_LENGTH } from "../../../../lib/constants";
-import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
-interface NewSpaceDialogProps {
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useCreateSpace } from "@/features/spaces/useSpaceMutations";
+import { SPACE_INSTRUCTIONS_MAX_LENGTH } from "@/lib/constants";
+
+type NewSpaceDialogProps = {
   open: boolean;
-  onClose: () => void;
-}
+  onOpenChange: (open: boolean) => void;
+};
 
-export function NewSpaceDialog({ open, onClose }: NewSpaceDialogProps) {
+export function NewSpaceDialog({ open, onOpenChange }: NewSpaceDialogProps) {
+  const createSpaceMutation = useCreateSpace();
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
-  const createSpace = useCreateSpace();
-  const setRole = useSpaceRoleStore((s) => s.setRole);
-  const navigate = useNavigate();
+  const [nameError, setNameError] = useState<string | null>(null);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) {
+      setName("");
+      setInstructions("");
+      setNameError(null);
+      createSpaceMutation.reset();
+    }
+  }, [open]);
 
-  const remaining = SPACE_INSTRUCTIONS_MAX_LENGTH - instructions.length;
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    createSpace.mutate(
+    if (!trimmedName) {
+      setNameError("Space name is required.");
+      return;
+    }
+
+    setNameError(null);
+
+    createSpaceMutation.mutate(
       {
-        name: name.trim(),
-        custom_instructions: instructions.trim() || undefined,
+        name: trimmedName,
+        ...(instructions.trim()
+          ? { custom_instructions: instructions.trim() }
+          : {}),
       },
       {
-        onSuccess: (space) => {
-          setRole(space.id, "OWNER"); // creator is always OWNER
-          onClose();
-          navigate(`/spaces/${space.id}`);
-        },
+        onSuccess: () => onOpenChange(false),
       },
     );
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-lg border bg-popover p-4 shadow-lg">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">New Space</h2>
-          <button onClick={onClose} aria-label="Close">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create a Space</DialogTitle>
+          <DialogDescription>
+            Organize documents and instructions for focused, repeatable
+            research.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1">
-            <label htmlFor="space-name" className="text-sm font-medium">
-              Name
-            </label>
-            <input
-              id="space-name"
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <Field data-invalid={Boolean(nameError)}>
+            <FieldLabel htmlFor="new-space-name">Name</FieldLabel>
+            <Input
+              id="new-space-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              autoFocus
+              placeholder="e.g. Final-year project research"
+              aria-invalid={Boolean(nameError)}
+              onChange={(event) => setName(event.target.value)}
             />
-          </div>
+            {nameError && <FieldError>{nameError}</FieldError>}
+          </Field>
 
-          <div className="space-y-1">
-            <label htmlFor="space-instructions" className="text-sm font-medium">
-              Custom instructions (optional)
-            </label>
-            <textarea
-              id="space-instructions"
+          <Field>
+            <FieldLabel htmlFor="new-space-instructions">
+              Custom instructions
+            </FieldLabel>
+            <Textarea
+              id="new-space-instructions"
               value={instructions}
-              onChange={(e) =>
-                setInstructions(
-                  e.target.value.slice(0, SPACE_INSTRUCTIONS_MAX_LENGTH),
-                )
-              }
-              rows={4}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              maxLength={SPACE_INSTRUCTIONS_MAX_LENGTH}
+              rows={6}
+              placeholder="Tell heyHi how answers in this Space should be researched and written…"
+              onChange={(event) => setInstructions(event.target.value)}
             />
-            <p className="text-right text-xs text-muted-foreground">
-              {remaining} left
-            </p>
-          </div>
+            <FieldDescription className="flex justify-between">
+              <span>Optional. Applied to every thread in this Space.</span>
+              <span>
+                {instructions.length}/{SPACE_INSTRUCTIONS_MAX_LENGTH}
+              </span>
+            </FieldDescription>
+          </Field>
 
-          <button
-            type="submit"
-            disabled={createSpace.isPending || !name.trim()}
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-          >
-            {createSpace.isPending ? "Creating…" : "Create Space"}
-          </button>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={createSpaceMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createSpaceMutation.isPending}>
+              {createSpaceMutation.isPending && (
+                <Loader2 className="size-4 animate-spin" />
+              )}
+              Create Space
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,180 +1,324 @@
-/**
- * features/conversation/useThreadStream.ts
- *
- * FIX: each call to runStream() now stamps the resulting StreamingTurnState
- * with a unique, client-generated `streamId` (crypto.randomUUID()). This
- * lets ThreadPage's commit effect tell "a completed stream I haven't
- * committed yet" apart from "the same completed stream firing again",
- * which is what caused the duplicate-turn rendering bug.
- *
- * IMPORTANT per 02-api-reference.md "POST /threads/{threadId}/turns":
- * focus_mode/file_ids/space_id/model are fixed at thread creation and NOT
- * accepted on continuation turns - only `query` goes to continueThread().
- */
 import { useCallback, useRef, useState } from "react";
-import { streamQuery } from "./sse";
-import { useAuthStore } from "../auth/useAuthStore";
-import { ApiError } from "../../../lib/apiError";
+
+import {
+  continueThread as continueThreadRequest,
+  createThread,
+  proSearch,
+} from "./api";
+
 import type {
-  CreateThreadRequest,
-  ContinueThreadRequest,
-  ProSearchRequest,
-  StreamingTurnState,
-  Source,
   Citation,
+  CreateThreadRequest,
+  ProSearchRequest,
+  Source,
+  StreamingTurnState,
 } from "./types";
 
-function generateStreamId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `stream_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
-const emptyTurnState = (
-  streamId: string,
-  isProSearch: boolean,
-): StreamingTurnState => ({
-  streamId,
-  queryText: "",
-  answerText: "",
-  sources: null,
-  citations: null,
-  followUps: null,
-  steps: [],
-  isDone: false,
-  isProSearch,
-});
-
-interface QuotaExceededState {
+type QuotaExceededState = {
   message: string;
-}
+};
+
+type StreamHandlers = {
+  onThreadId: (threadId: string | null) => void;
+  onToken: (text: string) => void;
+  onSources: (sources: Source[]) => void;
+  onCitations: (citations: Citation[]) => void;
+  onFollowUps: (followUps: string[]) => void;
+  onStep: (step: string) => void;
+  onDone: () => void;
+};
 
 export function useThreadStream() {
-  const accessToken = useAuthStore((s) => s.accessToken);
   const [current, setCurrent] = useState<StreamingTurnState | null>(null);
+
+  const [createdThreadId, setCreatedThreadId] = useState<string | null>(null);
+
+  const [streamError, setStreamError] = useState<string | null>(null);
+
   const [quotaExceeded, setQuotaExceeded] = useState<QuotaExceededState | null>(
     null,
   );
-  const [streamError, setStreamError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
-  const runStream = useCallback(
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const clearTransientState = useCallback(() => {
+    setCurrent(null);
+    setStreamError(null);
+    setQuotaExceeded(null);
+  }, []);
+
+  const consumeResponse = useCallback(
     async (
-      path: string,
-      body: object,
+      responsePromise: Promise<Response>,
       queryText: string,
       isProSearch: boolean,
     ) => {
-      // Abort any in-flight stream before starting a new one - prevents two
-      // concurrent streams both writing into `current` if the user
-      // double-submits (e.g. double-clicking Send or a follow-up chip).
-      abortRef.current?.abort();
-
-      setQuotaExceeded(null);
-      setStreamError(null);
-      const streamId = generateStreamId();
-      setCurrent({ ...emptyTurnState(streamId, isProSearch), queryText });
+      abortControllerRef.current?.abort();
 
       const controller = new AbortController();
-      abortRef.current = controller;
+      abortControllerRef.current = controller;
+
+      setCurrent({
+        queryText,
+        answerText: "",
+        sources: [],
+        citations: [],
+        followUps: [],
+        steps: [],
+        isProSearch,
+        isDone: false,
+      });
+
+      setStreamError(null);
+      setQuotaExceeded(null);
 
       try {
-        await streamQuery(
-          path,
-          body,
-          accessToken,
+        const response = await responsePromise;
+
+        const threadId =
+          response.headers.get("X-Thread-Id") ??
+          response.headers.get("x-thread-id") ??
+          response.headers.get("Thread-Id") ??
+          response.headers.get("thread-id");
+
+        if (threadId) {
+          setCreatedThreadId(threadId);
+          sessionStorage.setItem("heyhi:guest-thread-id", threadId);
+        }
+
+        if (!response.body) {
+          throw new Error("The server returned no streaming response body.");
+        }
+
+        await parseSseStream(
+          response.body,
           {
-            onToken: (text) =>
-              setCurrent((prev) =>
-                prev && prev.streamId === streamId
-                  ? { ...prev, answerText: prev.answerText + text }
-                  : prev,
-              ),
-            onSources: (sources: Source[]) =>
-              setCurrent((prev) =>
-                prev && prev.streamId === streamId
-                  ? { ...prev, sources }
-                  : prev,
-              ),
-            onCitations: (citations: Citation[]) =>
-              setCurrent((prev) =>
-                prev && prev.streamId === streamId
-                  ? { ...prev, citations }
-                  : prev,
-              ),
-            onFollowUps: (followUps) =>
-              setCurrent((prev) =>
-                prev && prev.streamId === streamId
-                  ? { ...prev, followUps }
-                  : prev,
-              ),
-            onStep: (description) =>
-              setCurrent((prev) =>
-                prev && prev.streamId === streamId
-                  ? { ...prev, steps: [...prev.steps, description] }
-                  : prev,
-              ),
-            onDone: () =>
-              setCurrent((prev) =>
-                prev && prev.streamId === streamId
-                  ? { ...prev, isDone: true }
-                  : prev,
-              ),
+            onThreadId: setCreatedThreadId,
+
+            onToken: (text) => {
+              setCurrent((previous) =>
+                previous
+                  ? {
+                      ...previous,
+                      answerText: previous.answerText + text,
+                    }
+                  : previous,
+              );
+            },
+
+            onSources: (sources) => {
+              setCurrent((previous) =>
+                previous ? { ...previous, sources } : previous,
+              );
+            },
+
+            onCitations: (citations) => {
+              setCurrent((previous) =>
+                previous ? { ...previous, citations } : previous,
+              );
+            },
+
+            onFollowUps: (followUps) => {
+              setCurrent((previous) =>
+                previous ? { ...previous, followUps } : previous,
+              );
+            },
+
+            onStep: (step) => {
+              setCurrent((previous) =>
+                previous
+                  ? {
+                      ...previous,
+                      steps: [...previous.steps, step],
+                    }
+                  : previous,
+              );
+            },
+
+            onDone: () => {
+              setCurrent((previous) =>
+                previous ? { ...previous, isDone: true } : previous,
+              );
+            },
           },
           controller.signal,
         );
-      } catch (err) {
-        if (controller.signal.aborted) return; // superseded by a newer stream, not a real error
-        if (
-          err instanceof ApiError &&
-          err.code === "PRO_SEARCH_QUOTA_EXCEEDED"
-        ) {
-          setQuotaExceeded({ message: err.message });
-          setCurrent(null);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
-        setStreamError(
-          err instanceof ApiError
-            ? err.message
-            : "Something went wrong starting this search.",
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to complete the request.";
+
+        if (message.toLowerCase().includes("daily pro search")) {
+          setQuotaExceeded({ message });
+        } else {
+          setStreamError(message);
+        }
+
+        setCurrent((previous) =>
+          previous ? { ...previous, isDone: true } : previous,
         );
-        setCurrent(null);
+      } finally {
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
       }
     },
-    [accessToken],
+    [],
   );
 
   const startThread = useCallback(
-    (request: CreateThreadRequest) =>
-      runStream("/threads", request, request.query, false),
-    [runStream],
+    async (request: CreateThreadRequest) => {
+      setCreatedThreadId(null);
+
+      await consumeResponse(createThread(request), request.query, false);
+    },
+    [consumeResponse],
   );
 
   const continueThread = useCallback(
-    (threadId: string, request: ContinueThreadRequest) =>
-      runStream(`/threads/${threadId}/turns`, request, request.query, false),
-    [runStream],
+    async (threadId: string, query: string) => {
+      await consumeResponse(
+        continueThreadRequest(threadId, query),
+        query,
+        false,
+      );
+    },
+    [consumeResponse],
   );
 
   const startProSearch = useCallback(
-    (request: ProSearchRequest) =>
-      runStream("/threads/pro-search", request, request.query, true),
-    [runStream],
+    async (request: ProSearchRequest) => {
+      setCreatedThreadId(null);
+
+      await consumeResponse(proSearch(request), request.query, true);
+    },
+    [consumeResponse],
   );
 
   const cancelStream = useCallback(() => {
-    abortRef.current?.abort();
-    setCurrent(null);
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+
+    setCurrent((previous) =>
+      previous ? { ...previous, isDone: true } : previous,
+    );
   }, []);
 
   return {
     current,
     quotaExceeded,
     streamError,
+    createdThreadId,
+    clearTransientState,
     startThread,
     continueThread,
     startProSearch,
     cancelStream,
   };
+}
+
+async function parseSseStream(
+  stream: ReadableStream<Uint8Array>,
+  handlers: StreamHandlers,
+  signal: AbortSignal,
+): Promise<void> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+
+  let buffer = "";
+
+  while (true) {
+    if (signal.aborted) {
+      await reader.cancel();
+      return;
+    }
+
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, {
+      stream: true,
+    });
+
+    const events = buffer.split(/\r?\n\r?\n/);
+    buffer = events.pop() ?? "";
+
+    for (const rawEvent of events) {
+      processSseEvent(rawEvent, handlers);
+    }
+  }
+
+  buffer += decoder.decode();
+
+  if (buffer.trim()) {
+    processSseEvent(buffer, handlers);
+  }
+}
+
+function processSseEvent(rawEvent: string, handlers: StreamHandlers): void {
+  let eventName = "message";
+  const dataLines: string[] = [];
+
+  for (const line of rawEvent.split(/\r?\n/)) {
+    if (line.startsWith("event:")) {
+      eventName = line.slice("event:".length).trim();
+    }
+
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).replace(/^ /, ""));
+    }
+  }
+
+  const data = dataLines.join("\n");
+
+  switch (eventName) {
+    case "token":
+      handlers.onToken(data);
+      break;
+
+    case "sources":
+      handlers.onSources(parseJsonArray<Source>(data));
+      break;
+
+    case "citations":
+      handlers.onCitations(parseJsonArray<Citation>(data));
+      break;
+
+    case "follow_ups":
+      handlers.onFollowUps(parseJsonArray<string>(data));
+      break;
+
+    case "step":
+      handlers.onStep(data);
+      break;
+
+    case "done":
+      handlers.onDone();
+      break;
+
+    default:
+      break;
+  }
+}
+
+function parseJsonArray<T>(value: string): T[] {
+  if (!value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
 }

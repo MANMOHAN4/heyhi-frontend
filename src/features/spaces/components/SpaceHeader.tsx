@@ -1,128 +1,189 @@
-/**
- * features/spaces/components/SpaceHeader.tsx
- * Per 03-pages-and-features.md §6 "Detail": name + custom instructions,
- * inline-editable only if role >= EDITOR (see useSpaceRole).
- */
-import { useState } from "react";
-import { Pencil, Check, X } from "lucide-react";
-import { useUpdateSpace } from "../useSpaceMutations";
-import { useSpaceRole } from "../useSpaceRole";
-import { SPACE_INSTRUCTIONS_MAX_LENGTH } from "../../../../lib/constants";
-import type { Space } from "../types";
+import { useEffect, useState } from "react";
+import { Check, Edit3, X } from "lucide-react";
 
-interface SpaceHeaderProps {
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useSpaceMutations } from "@/features/spaces/useSpaceMutations";
+import { useSpaceRole } from "@/features/spaces/useSpaceRole";
+import { SPACE_INSTRUCTIONS_MAX_LENGTH } from "@/lib/constants";
+import type { Space } from "@/features/spaces/types";
+
+type SpaceHeaderProps = {
   space: Space;
-}
+};
 
 export function SpaceHeader({ space }: SpaceHeaderProps) {
   const { isEditorOrAbove } = useSpaceRole(space.id);
-  const updateSpace = useUpdateSpace(space.id);
+  const updateSpaceMutation = useSpaceMutations(space.id).update;
 
   const [editingName, setEditingName] = useState(false);
   const [editingInstructions, setEditingInstructions] = useState(false);
-  const [nameDraft, setNameDraft] = useState(space.name);
-  const [instructionsDraft, setInstructionsDraft] = useState(
+  const [name, setName] = useState(space.name);
+  const [instructions, setInstructions] = useState(
     space.custom_instructions ?? "",
   );
 
+  useEffect(() => {
+    setName(space.name);
+    setInstructions(space.custom_instructions ?? "");
+  }, [space.name, space.custom_instructions]);
+
   const saveName = () => {
-    const trimmed = nameDraft.trim();
-    if (trimmed && trimmed !== space.name) {
-      updateSpace.mutate({ name: trimmed });
+    const nextName = name.trim();
+
+    if (!nextName || nextName === space.name) {
+      setName(space.name);
+      setEditingName(false);
+      return;
     }
-    setEditingName(false);
+
+    updateSpaceMutation.mutate(
+      { name: nextName },
+      {
+        onSuccess: () => setEditingName(false),
+      },
+    );
   };
 
   const saveInstructions = () => {
-    if (instructionsDraft !== (space.custom_instructions ?? "")) {
-      updateSpace.mutate({ custom_instructions: instructionsDraft });
-    }
-    setEditingInstructions(false);
+    const nextInstructions = instructions.trim();
+
+    updateSpaceMutation.mutate(
+      { custom_instructions: nextInstructions },
+      {
+        onSuccess: () => setEditingInstructions(false),
+      },
+    );
   };
 
   return (
-    <div className="space-y-3 border-b pb-4">
-      <div className="flex items-center gap-2">
-        {editingName ? (
-          <>
-            <input
-              autoFocus
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              className="rounded-md border px-2 py-1 text-lg font-semibold"
-            />
-            <button onClick={saveName} aria-label="Save name">
-              <Check className="h-4 w-4" />
-            </button>
-            <button onClick={() => setEditingName(false)} aria-label="Cancel">
-              <X className="h-4 w-4" />
-            </button>
-          </>
-        ) : (
-          <>
-            <h1 className="text-lg font-semibold">{space.name}</h1>
-            {isEditorOrAbove && (
-              <button
-                onClick={() => setEditingName(true)}
-                aria-label="Edit name"
+    <header className="space-y-5">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          {editingName ? (
+            <div className="flex items-center gap-2">
+              <input
+                value={name}
+                autoFocus
+                disabled={updateSpaceMutation.isPending}
+                className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-xl font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onChange={(event) => setName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    saveName();
+                  }
+                  if (event.key === "Escape") {
+                    setName(space.name);
+                    setEditingName(false);
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                onClick={saveName}
               >
-                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-            )}
-          </>
-        )}
+                <Check className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => {
+                  setName(space.name);
+                  setEditingName(false);
+                }}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-2xl font-semibold tracking-tight">
+                {space.name}
+              </h1>
+              {isEditorOrAbove && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setEditingName(true)}
+                  aria-label="Edit Space name"
+                >
+                  <Edit3 className="size-4" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            Shared research context and documents
+          </p>
+        </div>
       </div>
 
-      <div>
+      <div className="rounded-xl border border-border/70 bg-card/50 p-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-sm font-medium">Custom instructions</p>
+          {isEditorOrAbove && !editingInstructions && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => setEditingInstructions(true)}
+            >
+              <Edit3 className="size-3.5" />
+              Edit
+            </Button>
+          )}
+        </div>
+
         {editingInstructions ? (
-          <div className="space-y-1">
-            <textarea
+          <div className="space-y-2">
+            <Textarea
+              value={instructions}
+              rows={5}
+              maxLength={SPACE_INSTRUCTIONS_MAX_LENGTH}
               autoFocus
-              value={instructionsDraft}
-              onChange={(e) =>
-                setInstructionsDraft(
-                  e.target.value.slice(0, SPACE_INSTRUCTIONS_MAX_LENGTH),
-                )
-              }
-              rows={4}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              onChange={(event) => setInstructions(event.target.value)}
             />
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                {SPACE_INSTRUCTIONS_MAX_LENGTH - instructionsDraft.length} left
-              </p>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">
+                {instructions.length}/{SPACE_INSTRUCTIONS_MAX_LENGTH}
+              </span>
               <div className="flex gap-2">
-                <button
-                  onClick={saveInstructions}
-                  className="text-xs font-medium text-primary"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditingInstructions(false)}
-                  className="text-xs text-muted-foreground"
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setInstructions(space.custom_instructions ?? "");
+                    setEditingInstructions(false);
+                  }}
                 >
                   Cancel
-                </button>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={updateSpaceMutation.isPending}
+                  onClick={saveInstructions}
+                >
+                  Save
+                </Button>
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex items-start gap-2">
-            <p className="flex-1 text-sm text-muted-foreground">
-              {space.custom_instructions || "No custom instructions set."}
-            </p>
-            {isEditorOrAbove && (
-              <button
-                onClick={() => setEditingInstructions(true)}
-                aria-label="Edit instructions"
-              >
-                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-            )}
-          </div>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+            {space.custom_instructions ||
+              "No custom instructions have been added."}
+          </p>
         )}
       </div>
-    </div>
+    </header>
   );
 }

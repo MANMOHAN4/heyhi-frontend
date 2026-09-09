@@ -1,95 +1,131 @@
-/**
- * features/spaces/useSpaceMutations.ts
- * All write operations for Spaces, each invalidating the relevant query
- * cache entries on success. 404s from any of these are surfaced as
- * "you don't have permission" per the not-found-for-authorization pattern
- * (see 01-backend-reference.md), not a generic crash/toast.
- */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+
 import {
-  createSpace,
-  updateSpace,
-  deleteSpace,
   addFileToSpace,
+  createSpace,
+  deleteSpace,
   inviteCollaborator,
-} from "./api";
-import { ApiError } from "../../../lib/apiError";
+  updateSpace,
+} from "@/features/spaces/api";
+import { useSpaceRoleStore } from "@/features/spaces/useSpaceRole";
+import { ApiError } from "@/lib/apiError";
 import type {
   CreateSpaceRequest,
-  UpdateSpaceRequest,
   InviteCollaboratorRequest,
-} from "./types";
+  UpdateSpaceRequest,
+} from "@/features/spaces/types";
 
-function permissionAwareMessage(err: unknown, fallback: string) {
-  if (err instanceof ApiError && err.isNotFoundOrForbidden) {
-    return "You don't have permission to do this.";
+function getSpaceActionError(error: unknown, fallback: string) {
+  if (error instanceof ApiError) {
+    if (error.code === "USER_NOT_FOUND") {
+      return "No account was found with that email.";
+    }
+
+    if (error.status === 404) {
+      return "This Space is unavailable or you do not have permission to perform this action.";
+    }
+
+    return error.message || fallback;
   }
-  if (err instanceof ApiError && err.code === "USER_NOT_FOUND") {
-    return "No account found with that email.";
-  }
-  return err instanceof ApiError ? err.message : fallback;
+
+  return fallback;
 }
 
 export function useCreateSpace() {
   const queryClient = useQueryClient();
+  const setRole = useSpaceRoleStore((state) => state.setRole);
+
   return useMutation({
     mutationFn: (payload: CreateSpaceRequest) => createSpace(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["spaces"] }),
-    onError: (err) =>
-      toast.error(permissionAwareMessage(err, "Couldn't create this Space.")),
+    onSuccess: async (space) => {
+      setRole(space.id, "OWNER");
+      await queryClient.invalidateQueries({ queryKey: ["spaces"] });
+      toast.success("Space created");
+    },
+    onError: (error) => {
+      toast.error(getSpaceActionError(error, "Couldn't create the Space."));
+    },
   });
 }
 
 export function useUpdateSpace(spaceId: string) {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (payload: UpdateSpaceRequest) => updateSpace(spaceId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["spaces", spaceId] });
-      queryClient.invalidateQueries({ queryKey: ["spaces"] });
+    onSuccess: async (space) => {
+      queryClient.setQueryData(["spaces", "detail", spaceId], space);
+      await queryClient.invalidateQueries({ queryKey: ["spaces"] });
+      toast.success("Space updated");
     },
-    onError: (err) =>
-      toast.error(permissionAwareMessage(err, "Couldn't save changes.")),
+    onError: (error) => {
+      toast.error(getSpaceActionError(error, "Couldn't update the Space."));
+    },
   });
 }
 
 export function useDeleteSpace() {
   const queryClient = useQueryClient();
+  const removeRole = useSpaceRoleStore((state) => state.removeRole);
+
   return useMutation({
     mutationFn: (spaceId: string) => deleteSpace(spaceId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["spaces"] }),
-    onError: (err) =>
-      toast.error(permissionAwareMessage(err, "Couldn't delete this Space.")),
+    onSuccess: async (_response, spaceId) => {
+      removeRole(spaceId);
+      queryClient.removeQueries({ queryKey: ["spaces", "detail", spaceId] });
+      queryClient.removeQueries({ queryKey: ["spaces", spaceId] });
+      await queryClient.invalidateQueries({ queryKey: ["spaces"] });
+      toast.success("Space deleted");
+    },
+    onError: (error) => {
+      toast.error(getSpaceActionError(error, "Couldn't delete the Space."));
+    },
   });
 }
 
 export function useAddFileToSpace(spaceId: string) {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (fileId: string) =>
       addFileToSpace(spaceId, { file_id: fileId }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["spaces", spaceId] }),
-    onError: (err) =>
-      toast.error(permissionAwareMessage(err, "Couldn't add this file.")),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["spaces", "detail", spaceId],
+      });
+      toast.success("File added to Space");
+    },
+    onError: (error) => {
+      toast.error(
+        getSpaceActionError(error, "Couldn't add the file to this Space."),
+      );
+    },
   });
 }
 
 export function useInviteCollaborator(spaceId: string) {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (payload: InviteCollaboratorRequest) =>
       inviteCollaborator(spaceId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
         queryKey: ["spaces", spaceId, "collaborators"],
       });
       toast.success("Collaborator added");
     },
-    onError: (err) =>
-      toast.error(
-        permissionAwareMessage(err, "Couldn't invite this collaborator."),
-      ),
+    onError: (error) => {
+      toast.error(getSpaceActionError(error, "Couldn't add the collaborator."));
+    },
   });
+}
+
+export function useSpaceMutations(spaceId: string) {
+  return {
+    update: useUpdateSpace(spaceId),
+    addFile: useAddFileToSpace(spaceId),
+    invite: useInviteCollaborator(spaceId),
+  };
 }

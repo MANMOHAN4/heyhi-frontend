@@ -6,8 +6,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', sans-serif;
+  --font-heading: var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   --color-background: var(--background);
@@ -57,9 +57,16 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Light palette remains available if you later add a theme switcher. */
+/*
+ * Light semantic tokens.
+ *
+ * The app starts in dark mode because index.html has class="dark".
+ * These values remain for the UserMenu theme Switch.
+ */
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -94,7 +101,7 @@
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
 
-  --radius: 0.75rem;
+  --radius: 0.625rem;
 
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
@@ -107,76 +114,84 @@
 }
 
 /*
- * Default product theme: dark zinc.
- * This is the palette that should activate when index.html has class="dark".
+ * Premium dark-zinc surface system.
+ *
+ * Background: near-black.
+ * Sidebar: slightly elevated zinc panel.
+ * Cards: subtle differentiated dark surface.
+ * Borders: restrained light-alpha separation.
  */
 .dark {
-  --background: oklch(0.105 0.004 285.8);
+  --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);
 
-  --card: oklch(0.165 0.006 285.885);
+  --card: oklch(0.21 0.006 285.885);
   --card-foreground: oklch(0.985 0 0);
 
-  --popover: oklch(0.19 0.006 285.885);
+  --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
 
   --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.19 0.006 285.885);
+  --primary-foreground: oklch(0.21 0.006 285.885);
 
-  --secondary: oklch(0.235 0.006 286.033);
+  --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
 
-  --muted: oklch(0.20 0.006 286.033);
+  --muted: oklch(0.274 0.006 286.033);
   --muted-foreground: oklch(0.705 0.015 286.067);
 
-  --accent: oklch(0.255 0.006 286.033);
+  --accent: oklch(0.274 0.006 286.033);
   --accent-foreground: oklch(0.985 0 0);
 
   --destructive: oklch(0.704 0.191 22.216);
 
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.705 0.015 286.067);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
 
-  --chart-1: oklch(0.82 0.02 286.286);
-  --chart-2: oklch(0.66 0.016 285.938);
-  --chart-3: oklch(0.54 0.017 285.786);
-  --chart-4: oklch(0.43 0.013 285.805);
-  --chart-5: oklch(0.33 0.006 286.033);
+  --chart-1: oklch(0.871 0.006 286.286);
+  --chart-2: oklch(0.552 0.016 285.938);
+  --chart-3: oklch(0.442 0.017 285.786);
+  --chart-4: oklch(0.37 0.013 285.805);
+  --chart-5: oklch(0.274 0.006 286.033);
 
-  --sidebar: oklch(0.13 0.005 285.823);
+  --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.92 0.004 286.32);
-  --sidebar-primary-foreground: oklch(0.19 0.006 285.885);
-  --sidebar-accent: oklch(0.21 0.006 286.033);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border outline-ring/50;
   }
 
   html {
-    @apply bg-background font-sans antialiased;
+    @apply bg-background antialiased font-sans;
+    min-width: 320px;
+    min-height: 100%;
   }
 
   body {
     @apply min-h-screen bg-background text-foreground;
     margin: 0;
+    min-width: 320px;
     overflow: hidden;
   }
 
   /*
-   * Crucial application-level reset.
-   * Do NOT constrain #root to 1126px or center it.
-   * The app shell owns all dimensions.
+   * Critical SPA layout reset.
+   *
+   * Never use Vite's default max-width/margin/padding/text-align rules
+   * here. AppShellLayout and PublicLayout own dimensions themselves.
    */
   #root {
-    min-height: 100dvh;
     width: 100%;
+    min-height: 100dvh;
   }
 
   button,
@@ -191,21 +206,37 @@
     cursor: pointer;
   }
 
+  button:disabled,
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+
   h1,
   h2,
   h3,
-  h4 {
+  h4,
+  h5,
+  h6 {
     @apply font-semibold tracking-tight text-foreground;
+  }
+
+  p {
+    margin: 0;
   }
 
   ::selection {
     @apply bg-primary text-primary-foreground;
   }
 
-  /* Premium, restrained scrollbars. */
+  /*
+   * Restrained, premium scrollbar styling.
+   * Keeps long conversations and sidebar history visually unobtrusive.
+   */
   * {
     scrollbar-width: thin;
-    scrollbar-color: oklch(0.4 0.01 285 / 0.65) transparent;
+    scrollbar-color: oklch(0.42 0.01 285 / 0.65) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -218,14 +249,14 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background: oklch(0.4 0.01 285 / 0.65);
+    background: oklch(0.42 0.01 285 / 0.65);
     border: 2px solid transparent;
     border-radius: 999px;
     background-clip: content-box;
   }
 
   *::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.55 0.01 285 / 0.8);
+    background: oklch(0.56 0.01 285 / 0.8);
     border: 2px solid transparent;
     background-clip: content-box;
   }

@@ -1,18 +1,23 @@
-/**
- * features/sidebar/useThreadSearch.ts
- * Debounces the sidebar search input into the `q` param for
- * useThreadsQuery (GET /threads?q=...), per 03-pages-and-features.md §2.
- */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-export function useThreadSearch(delayMs = 300) {
-  const [inputValue, setInputValue] = useState("");
-  const [debouncedValue, setDebouncedValue] = useState("");
+import { useDebounce } from "@/hooks/useDebounce";
+import { useThreadsQuery } from "@/features/conversation/useThreadsQuery";
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(inputValue), delayMs);
-    return () => clearTimeout(timer);
-  }, [inputValue, delayMs]);
+export function useThreadSearch(delay = 300) {
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedQuery = useDebounce(searchInput.trim(), delay);
 
-  return { inputValue, setInputValue, debouncedValue };
+  const threadsQuery = useThreadsQuery(debouncedQuery);
+
+  return {
+    searchInput,
+    setSearchInput,
+    debouncedQuery,
+    threads: threadsQuery.data ?? [],
+    isLoading: threadsQuery.isLoading,
+    isFetching: threadsQuery.isFetching,
+    isError: threadsQuery.isError,
+    error: threadsQuery.error,
+    refetch: threadsQuery.refetch,
+  };
 }

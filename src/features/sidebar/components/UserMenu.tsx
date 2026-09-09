@@ -1,69 +1,198 @@
-/**
- * features/sidebar/components/UserMenu.tsx
- * Avatar/email, link to /settings, log out, and - only if the admin-check
- * succeeded - a link to /admin (see 01-backend-reference.md "Authorization
- * / Roles": never render any admin-hinting UI for a non-admin user).
- */
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import { Settings, LogOut, ShieldCheck, ChevronUp } from "lucide-react";
-import { useAuthStore } from "../../auth/useAuthStore";
-import { useAdminCheck } from "../../auth/useAdminCheck";
+import { useNavigate } from "react-router-dom";
+import {
+  BadgeCheck,
+  ChevronUp,
+  Crown,
+  LogIn,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  UserPlus,
+} from "lucide-react";
 
-export function UserMenu() {
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-  const isAdmin = useAdminCheck();
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
+
+import { useAdminCheck } from "@/features/auth/useAdminCheck";
+import { useAuthStore } from "@/features/auth/useAuthStore";
+
+type UserMenuProps = {
+  onNavigate?: () => void;
+};
+
+function getInitials(email: string): string {
+  const localPart = email.split("@")[0] ?? "";
+
+  if (!localPart) {
+    return "U";
+  }
+
+  const words = localPart.split(/[._-]+/).filter(Boolean);
+
+  if (words.length >= 2) {
+    return `${words[0]?.[0] ?? ""}${words[1]?.[0] ?? ""}`.toUpperCase();
+  }
+
+  return localPart.slice(0, 2).toUpperCase();
+}
+
+export function UserMenu({ onNavigate }: UserMenuProps) {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
 
-  if (!user) return null;
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleLogout = () => {
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+
+  const { isAdmin, isChecking } = useAdminCheck();
+
+  const email = user?.email ?? "Guest";
+  const displayName = user?.display_name?.trim() || email;
+
+  function closeMenu(): void {
+    setIsOpen(false);
+  }
+
+  function navigateTo(path: string): void {
+    closeMenu();
+    onNavigate?.();
+    navigate(path);
+  }
+
+  function handleLogout(): void {
+    closeMenu();
+    onNavigate?.();
     logout();
     navigate("/login", { replace: true });
-  };
+  }
 
   return (
-    <div className="relative border-t p-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-      >
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-          {(user.display_name ?? user.email)[0]?.toUpperCase()}
-        </div>
-        <span className="flex-1 truncate text-left">{user.display_name ?? user.email}</span>
-        <ChevronUp className="h-3.5 w-3.5" />
-      </button>
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuButton
+                size="lg"
+                className="data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-sidebar-accent-foreground"
+              />
+            }
+          >
+            <Avatar className="size-8 rounded-lg">
+              <AvatarFallback className="rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
+                {getInitials(email)}
+              </AvatarFallback>
+            </Avatar>
 
-      {open && (
-        <div className="absolute bottom-full left-2 mb-1 w-52 rounded-md border bg-popover p-1 text-sm shadow-md">
-          <NavLink
-            to="/settings"
-            className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
-            onClick={() => setOpen(false)}
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">{displayName}</span>
+
+              <span className="truncate text-xs text-muted-foreground">
+                {user ? email : "Guest session"}
+              </span>
+            </div>
+
+            <ChevronUp className="ml-auto size-4" />
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent
+            className="w-64 rounded-lg"
+            side="top"
+            align="end"
+            sideOffset={8}
           >
-            <Settings className="h-3.5 w-3.5" /> Settings
-          </NavLink>
-          {isAdmin && (
-            <NavLink
-              to="/admin"
-              className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
-              onClick={() => setOpen(false)}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" /> Admin console
-            </NavLink>
-          )}
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-destructive hover:bg-accent"
-          >
-            <LogOut className="h-3.5 w-3.5" /> Log out
-          </button>
-        </div>
-      )}
-    </div>
+            <DropdownMenuLabel className="p-0 font-normal">
+              <div className="flex items-center gap-2 px-2 py-2 text-left text-sm">
+                <Avatar className="size-8 rounded-lg">
+                  <AvatarFallback className="rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
+                    {getInitials(email)}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{displayName}</span>
+
+                  <span className="truncate text-xs text-muted-foreground">
+                    {user ? email : "Guest session"}
+                  </span>
+                </div>
+              </div>
+            </DropdownMenuLabel>
+
+            <DropdownMenuSeparator />
+
+            {user ? (
+              <>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => navigateTo("/settings")}>
+                    <Settings className="size-4" />
+                    Settings
+                  </DropdownMenuItem>
+
+                  {user.email_verified ? (
+                    <DropdownMenuItem disabled>
+                      <BadgeCheck className="size-4 text-emerald-500" />
+                      Email verified
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem disabled>
+                      <BadgeCheck className="size-4 text-amber-500" />
+                      Email not verified
+                    </DropdownMenuItem>
+                  )}
+
+                  {isAdmin === true ? (
+                    <DropdownMenuItem onClick={() => navigateTo("/admin")}>
+                      <ShieldCheck className="size-4" />
+                      Admin console
+                    </DropdownMenuItem>
+                  ) : null}
+
+                  {isChecking ? (
+                    <DropdownMenuItem disabled>
+                      <Crown className="size-4" />
+                      Checking permissions…
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuGroup>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+                  <LogOut className="size-4" />
+                  Log out
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <DropdownMenuGroup>
+                <DropdownMenuItem onClick={() => navigateTo("/login")}>
+                  <LogIn className="size-4" />
+                  Log in
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => navigateTo("/signup")}>
+                  <UserPlus className="size-4" />
+                  Create account
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
