@@ -33,7 +33,7 @@ export function LoginPage() {
         </div>
       ) : null}
 
-      <LoginForm />
+      <LoginForm redirectTo={searchParams.get("redirect")} />
 
       <div className="flex items-center gap-3" aria-hidden="true">
         <div className="h-px flex-1 bg-border" />

@@ -82,19 +82,60 @@ export async function apiFetch<T>(
     throw apiError;
   }
 
-  if (response.status === 204 || response.status === 202) {
+  if (response.status === 204) {
     return undefined as T;
   }
 
+  /*
+   * 202 Accepted is used by two different endpoints with different bodies:
+   * - POST /files returns 202 WITH a JSON body ({id, filename, status}).
+   * - DELETE /users/me returns 202 with no meaningful body.
+   * Don't special-case 202 as "always empty" - fall through to the same
+   * content-type sniffing used for every other status code instead.
+   */
   const contentType = response.headers.get("content-type") ?? "";
 
   if (!contentType.includes("application/json")) {
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 export function buildApiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
+}
+
+/*
+ * For call sites that need to build a raw fetch() manually (file upload
+ * with progress, the SSE streaming endpoints) rather than going through
+ * apiFetch(). These read from the same single source of truth as apiFetch
+ * itself, so token/base-URL handling never diverges between the two paths.
+ */
+export function getAccessToken(): string | null {
+  return useAuthStore.getState().accessToken;
+}
+
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
+
+/*
+ * Call this for any raw fetch() (i.e. not going through apiFetch) that can
+ * hit a 401 - the SSE streaming endpoints in particular. Centralizes the
+ * same logout + session-expired notification apiFetch performs, so a token
+ * expiring mid-conversation behaves identically to one expiring on a normal
+ * request.
+ */
+export function handleUnauthorizedResponse(response: Response): void {
+  if (response.status === 401) {
+    useAuthStore.getState().logout();
+    sessionExpiredHandler?.();
+  }
 }

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import { useAuthStore } from "@/features/auth/useAuthStore";
-import { apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/apiClient";
 
 export function useAdminCheck() {
   const accessToken = useAuthStore((state) => state.accessToken);

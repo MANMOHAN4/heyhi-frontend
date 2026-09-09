@@ -8,13 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/apiError";
 
-import { login } from "../api";
+import { getCurrentUser, login } from "../api";
 import { useAuthStore } from "../useAuthStore";
 
-export function LoginForm() {
+type LoginFormProps = {
+  redirectTo?: string | null;
+};
+
+export function LoginForm({ redirectTo }: LoginFormProps) {
   const navigate = useNavigate();
 
   const storeLogin = useAuthStore((state) => state.storeLogin);
+  const setUser = useAuthStore((state) => state.setUser);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,16 +28,34 @@ export function LoginForm() {
   const loginMutation = useMutation({
     mutationFn: login,
 
-    onSuccess: (tokens) => {
+    onSuccess: async (tokens) => {
       /*
-       * Your store accepts only the access token.
-       *
-       * The backend login response provides:
-       * access_token, refresh_token, expires_in.
+       * The store only persists the access token (see useAuthStore/
+       * 01-backend-reference.md - refresh_token is issued but unusable,
+       * there is no /auth/refresh endpoint to redeem it with).
        */
       storeLogin(tokens.access_token);
 
-      navigate("/", { replace: true });
+      /*
+       * The sidebar UserMenu (and anything else keying off
+       * useAuthStore.user) needs a populated profile to show the
+       * authenticated menu instead of "Log in / Create account". A plain
+       * email/password login only returns tokens, not a profile, so fetch
+       * it explicitly right after storing the token.
+       *
+       * This is best-effort: if it fails, the user is still logged in
+       * (accessToken is set and ProtectedRoute/route guards work off that),
+       * they'll just briefly see "Guest session" in the menu until the next
+       * successful /users/me call (e.g. from visiting Settings).
+       */
+      try {
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+      } catch {
+        // Non-fatal - see comment above.
+      }
+
+      navigate(redirectTo || "/", { replace: true });
     },
 
     onError: (error: unknown) => {

@@ -17,6 +17,12 @@ import SettingsPage from "@/routes/settings/SettingsPage";
 import SpaceDetailPage from "@/routes/spaces/SpaceDetailPage";
 import SpacesListPage from "@/routes/spaces/SpacesListPage";
 
+import AdminLayout from "@/routes/admin/AdminLayout";
+import AdminUsersTab from "@/routes/admin/AdminUsersTab";
+import AdminModerationTab from "@/routes/admin/AdminModerationTab";
+import AdminAuditLogTab from "@/routes/admin/AdminAuditLogTab";
+import AdminHealthTab from "@/routes/admin/AdminHealthTab";
+
 function AuthLayout() {
   return (
     <main className="grid min-h-screen place-items-center bg-background px-4 py-10 text-foreground">
@@ -42,19 +48,6 @@ function NotFoundPage() {
         </p>
       </div>
     </main>
-  );
-}
-
-function AdminPage() {
-  return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold">Admin</h1>
-
-      <p className="mt-2 text-sm text-muted-foreground">
-        Admin controls will appear here after the backend admin check is
-        implemented.
-      </p>
-    </div>
   );
 }
 
@@ -117,8 +110,25 @@ export const router = createBrowserRouter([
             element: <AdminRoute />,
             children: [
               {
-                path: "/admin",
-                element: <AdminPage />,
+                element: <AdminLayout />,
+                children: [
+                  {
+                    path: "/admin",
+                    element: <AdminUsersTab />,
+                  },
+                  {
+                    path: "/admin/moderation",
+                    element: <AdminModerationTab />,
+                  },
+                  {
+                    path: "/admin/audit-log",
+                    element: <AdminAuditLogTab />,
+                  },
+                  {
+                    path: "/admin/health",
+                    element: <AdminHealthTab />,
+                  },
+                ],
               },
             ],
           },

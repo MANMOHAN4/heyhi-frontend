@@ -1,11 +1,15 @@
-import { getAccessToken, getApiBaseUrl, apiFetch } from "@/lib/api";
+import {
+  apiFetch,
+  getAccessToken,
+  getApiBaseUrl,
+  handleUnauthorizedResponse,
+} from "@/lib/apiClient";
 import { parseApiError } from "@/lib/apiError";
 
 import type {
   CreateThreadRequest,
   ProSearchRequest,
   ShareThreadResponse,
-  Thread,
   ThreadSummary,
 } from "./types";
 
@@ -15,10 +19,18 @@ export function getThreads(query?: string): Promise<ThreadSummary[]> {
   return apiFetch<ThreadSummary[]>(`/threads${search}`);
 }
 
-export function getThread(threadId: string): Promise<Thread> {
-  return apiFetch<Thread>(`/threads/${encodeURIComponent(threadId)}`);
-}
-
+/*
+ * NOTE: there is currently no documented GET /threads/{threadId} endpoint
+ * on the backend (see 02-api-reference.md - only GET /threads, the list
+ * endpoint, exists). Full thread history for the ThreadPage route is
+ * reconstructed client-side from GET /threads (title/updated_at only) plus
+ * whatever turns have streamed in during this browser session, because
+ * there is currently no way to fetch a single thread's turn array at all.
+ *
+ * Flag to backend: add GET /threads/{threadId} returning the full Thread
+ * (including `turns`) so a thread opened from the sidebar/reload can show
+ * its real history instead of only turns generated in the current tab.
+ */
 export async function createThread(
   request: CreateThreadRequest,
 ): Promise<Response> {
@@ -42,10 +54,7 @@ export function renameThread(
 ): Promise<void> {
   return apiFetch<void>(`/threads/${encodeURIComponent(threadId)}`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+    body: payload,
   });
 }
 
@@ -90,6 +99,7 @@ async function fetchSse(path: string, body: object): Promise<Response> {
   });
 
   if (!response.ok) {
+    handleUnauthorizedResponse(response);
     throw await parseApiError(response);
   }
 

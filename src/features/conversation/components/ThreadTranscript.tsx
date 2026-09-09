@@ -19,6 +19,14 @@ type ThreadTranscriptProps = {
   turns: Turn[];
   streamingTurn: StreamingTurnState | null;
   onFollowUpSelect: (query: string) => void;
+  /*
+   * Suppresses the "Start a conversation" empty state for a thread that
+   * genuinely exists and has history, just not history this page can
+   * display yet (see ThreadPage's continuing-conversation banner, and
+   * useThreadLookup for why). Showing both together would contradict each
+   * other - one says start fresh, the other says you're continuing.
+   */
+  suppressEmptyState?: boolean;
 };
 
 /*
@@ -33,6 +41,7 @@ export function ThreadTranscript({
   turns,
   streamingTurn,
   onFollowUpSelect,
+  suppressEmptyState = false,
 }: ThreadTranscriptProps) {
   const completedTurnItems = useMemo(
     () =>
@@ -44,7 +53,10 @@ export function ThreadTranscript({
     [streamingTurn, turns],
   );
 
-  const isEmpty = completedTurnItems.length === 0 && streamingTurn === null;
+  const isEmpty =
+    completedTurnItems.length === 0 &&
+    streamingTurn === null &&
+    !suppressEmptyState;
 
   return (
     <div className="min-h-0 flex-1">

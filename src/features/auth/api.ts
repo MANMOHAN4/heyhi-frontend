@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/apiClient";
 
 export type LoginRequest = {
   email: string;
@@ -34,20 +34,21 @@ export type CurrentUser = {
 export function login(request: LoginRequest): Promise<LoginResponse> {
   return apiFetch<LoginResponse>("/auth/login", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
+    body: request,
+    /*
+     * Login is the one call that must never trigger the 401 -> logout
+     * pipeline: a wrong-password 401 here is an expected form-validation
+     * result, not an existing session expiring.
+     */
+    skipAuth: true,
   });
 }
 
 export function signup(request: SignupRequest): Promise<SignupResponse> {
   return apiFetch<SignupResponse>("/auth/signup", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
+    body: request,
+    skipAuth: true,
   });
 }
 
@@ -58,6 +59,7 @@ export function getCurrentUser(): Promise<CurrentUser> {
 export function verifyEmail(token: string): Promise<void> {
   return apiFetch<void>(
     `/auth/verify-email?token=${encodeURIComponent(token)}`,
+    { skipAuth: true },
   );
 }
 

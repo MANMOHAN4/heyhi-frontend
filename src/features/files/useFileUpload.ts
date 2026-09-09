@@ -1,7 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 
 import { ApiError, parseApiError } from "@/lib/apiError";
-import { getAccessToken, getApiBaseUrl } from "@/lib/api";
+import {
+  getAccessToken,
+  getApiBaseUrl,
+  handleUnauthorizedResponse,
+} from "@/lib/apiClient";
 
 type UploadedFile = {
   id: string;
@@ -51,6 +55,7 @@ async function uploadFile(file: File): Promise<UploadedFile> {
   });
 
   if (!response.ok) {
+    handleUnauthorizedResponse(response);
     throw await parseApiError(response);
   }
 
