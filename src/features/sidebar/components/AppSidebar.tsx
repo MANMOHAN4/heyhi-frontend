@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { MessageSquarePlus, PanelLeft, Search, Sparkles } from "lucide-react";
+import { MessageSquarePlus, PanelLeft, Search } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-
+import { AppLogo } from "@/components/shared/AppLogo";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
@@ -73,14 +73,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
           >
             <PanelLeft className="size-4" />
           </Button>
-
-          <Link
-            to="/"
-            className="ml-2 text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            heyHi
-          </Link>
-
+          <AppLogo className="ml-2" />
           <Button
             type="button"
             variant="ghost"
@@ -127,16 +120,8 @@ function DesktopSidebar({ onOpenCommand }: DesktopSidebarProps) {
       className="hidden border-r border-sidebar-border md:flex"
     >
       <SidebarHeader className="gap-3 px-3 py-4">
-        <div className="flex items-center gap-2 px-1">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
-            <Sparkles className="size-4" />
-          </div>
-
-          <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
-            heyHi
-          </span>
-        </div>
-
+        <div className="px-1"></div>
+        <AppLogo />
         <Button
           variant="outline"
           size="sm"
@@ -303,11 +288,8 @@ function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
         className="flex w-[19rem] max-w-[85vw] flex-col p-0"
       >
         <SheetHeader className="border-b p-4 text-left">
-          <SheetTitle className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="size-3.5" />
-            </span>
-            heyHi
+          <SheetTitle>
+            <AppLogo onClick={closeSheet} />
           </SheetTitle>
         </SheetHeader>
 

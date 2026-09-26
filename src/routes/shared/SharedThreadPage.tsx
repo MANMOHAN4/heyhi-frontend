@@ -1,9 +1,9 @@
 import { Link, useParams } from "react-router-dom";
-import { Link2Off, Sparkles } from "lucide-react";
+import { Link2Off } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import { AppLogo } from "@/components/shared/AppLogo";
 import { PageErrorState } from "@/components/shared/PageErrorState";
 import { ApiError } from "@/lib/apiError";
 import { SharedTranscript } from "@/features/sharing/components/SharedTranscript";
@@ -41,15 +41,7 @@ export default function SharedThreadPage() {
     <div className="min-h-[100dvh] bg-background">
       <header className="border-b border-border/70 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
-          <Link
-            to="/"
-            className="flex items-center gap-2 font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="size-3.5" />
-            </span>
-            heyHi
-          </Link>
+          <AppLogo />
 
           <Button variant="outline" size="sm" render={<Link to="/signup" />}>
             Try heyHi
