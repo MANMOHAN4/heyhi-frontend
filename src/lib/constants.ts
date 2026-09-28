@@ -70,27 +70,39 @@ export const FOCUS_MODE_DETAILS: Record<
 };
 
 /*
- * Known temporary frontend model catalog.
- * The backend currently does not expose GET /models, so replace this
- * with a server-provided catalog once that endpoint exists.
+ * GET /models (BACKEND_API_REFERENCE.md §8.2, P6) is now real and is the
+ * source of truth for which model ids exist - see useModelsQuery. These
+ * are display-only enrichments for ids we happen to recognize; an id the
+ * backend returns that isn't listed here just falls back to showing its
+ * raw id (see ModelSelect), so a new model works immediately without a
+ * frontend deploy, just without a friendly label until this map catches up.
  */
-export const MODEL_IDS = [
-  "auto",
-  "groq-llama-3.3-70b",
-  "gemini-flash-latest",
-] as const;
-
-export type ModelId = (typeof MODEL_IDS)[number];
-
-export const MODEL_LABELS: Record<ModelId, string> = {
+export const KNOWN_MODEL_LABELS: Record<string, string> = {
   auto: "Auto",
   "groq-llama-3.3-70b": "Llama 3.3 70B",
   "gemini-flash-latest": "Gemini Flash",
 };
 
+export const KNOWN_MODEL_DESCRIPTIONS: Record<string, string> = {
+  auto: "Automatically uses the default model.",
+  "groq-llama-3.3-70b":
+    "A capable general-purpose model for reasoning and writing.",
+  "gemini-flash-latest":
+    "A fast model for everyday questions and quick responses.",
+};
+
+/*
+ * BACKEND_API_REFERENCE.md §5/§8.5: GET /spaces/{id}/my-role can return NONE
+ * (the caller has no relationship to the Space at all - not owner, not a
+ * listed collaborator). SPACE_ROLES intentionally excludes NONE: it's a
+ * valid wire value but never a role to compare "at least X" against - use
+ * `role === "NONE"` as an explicit no-access check instead.
+ */
 export const SPACE_ROLES = ["OWNER", "EDITOR", "VIEWER"] as const;
 
 export type SpaceRole = (typeof SPACE_ROLES)[number];
+
+export type SpaceRoleOrNone = SpaceRole | "NONE";
 
 export const ROLE_RANK: Record<SpaceRole, number> = {
   VIEWER: 0,

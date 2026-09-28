@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { useDeleteSpace } from "@/features/spaces/useSpaceMutations";
+import type { DeleteSpaceThreadsAction } from "@/features/spaces/api";
+import { cn } from "@/lib/utils";
 
 type DeleteSpaceAlertDialogProps = {
   spaceId: string;
@@ -31,12 +33,22 @@ export function DeleteSpaceAlertDialog({
   const navigate = useNavigate();
   const deleteMutation = useDeleteSpace();
   const [confirmation, setConfirmation] = useState("");
+  /*
+   * BACKEND_API_REFERENCE.md §8.5: DELETE /spaces/{id} requires ?threads=
+   * (delete|detach) - there's no default, missing it is a 400. No radio is
+   * pre-selected here on purpose: which outcome someone wants for their
+   * threads (gone along with the Space, or kept as personal threads) isn't
+   * something to guess on their behalf for an irreversible action.
+   */
+  const [threadsAction, setThreadsAction] =
+    useState<DeleteSpaceThreadsAction | null>(null);
 
-  const canDelete = confirmation.trim() === spaceName;
+  const canDelete = confirmation.trim() === spaceName && threadsAction !== null;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!deleteMutation.isPending && !nextOpen) {
       setConfirmation("");
+      setThreadsAction(null);
       onOpenChange(false);
       return;
     }
@@ -45,13 +57,21 @@ export function DeleteSpaceAlertDialog({
   };
 
   const handleDelete = () => {
-    deleteMutation.mutate(spaceId, {
-      onSuccess: () => {
-        setConfirmation("");
-        onOpenChange(false);
-        navigate("/spaces", { replace: true });
+    if (!threadsAction) {
+      return;
+    }
+
+    deleteMutation.mutate(
+      { spaceId, threadsAction },
+      {
+        onSuccess: () => {
+          setConfirmation("");
+          setThreadsAction(null);
+          onOpenChange(false);
+          navigate("/spaces", { replace: true });
+        },
       },
-    });
+    );
   };
 
   return (
@@ -67,6 +87,64 @@ export function DeleteSpaceAlertDialog({
             files, and collaborator access. This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        <fieldset className="space-y-2" disabled={deleteMutation.isPending}>
+          <legend className="text-sm font-medium">
+            What should happen to this Space&apos;s conversations?
+          </legend>
+
+          <label
+            className={cn(
+              "flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm transition-colors",
+              threadsAction === "detach"
+                ? "border-primary/60 bg-primary/5"
+                : "border-border/70 hover:bg-muted/40",
+            )}
+          >
+            <input
+              type="radio"
+              name="delete-space-threads-action"
+              value="detach"
+              checked={threadsAction === "detach"}
+              onChange={() => setThreadsAction("detach")}
+              className="mt-0.5 size-4 accent-primary"
+            />
+            <span>
+              <span className="block font-medium">Keep the conversations</span>
+              <span className="block text-muted-foreground">
+                They become personal, space-less threads you can still open
+                from your history.
+              </span>
+            </span>
+          </label>
+
+          <label
+            className={cn(
+              "flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm transition-colors",
+              threadsAction === "delete"
+                ? "border-destructive/60 bg-destructive/5"
+                : "border-border/70 hover:bg-muted/40",
+            )}
+          >
+            <input
+              type="radio"
+              name="delete-space-threads-action"
+              value="delete"
+              checked={threadsAction === "delete"}
+              onChange={() => setThreadsAction("delete")}
+              className="mt-0.5 size-4 accent-destructive"
+            />
+            <span>
+              <span className="block font-medium">
+                Delete the conversations too
+              </span>
+              <span className="block text-muted-foreground">
+                Every thread created in this Space is permanently deleted
+                along with it.
+              </span>
+            </span>
+          </label>
+        </fieldset>
 
         <div className="space-y-2">
           <label htmlFor="delete-space-confirm" className="text-sm font-medium">

@@ -5,6 +5,7 @@ import {
   handleUnauthorizedResponse,
 } from "@/lib/apiClient";
 import { parseApiError } from "@/lib/apiError";
+import type { Page } from "@/lib/pagination";
 
 import type {
   CreateThreadRequest,
@@ -13,10 +14,34 @@ import type {
   ThreadSummary,
 } from "./types";
 
-export function getThreads(query?: string): Promise<ThreadSummary[]> {
-  const search = query?.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+/*
+ * GET /threads is cursor-paginated (BACKEND_API_REFERENCE.md §8.2):
+ * Page<ThreadSummaryResponse> = { items, next_cursor }, always sorted
+ * updated_at DESC, not client-configurable. Pass the previous page's
+ * next_cursor back as `after` to fetch the next page; null means no more.
+ */
+export function getThreads(options?: {
+  query?: string;
+  after?: string;
+  size?: number;
+}): Promise<Page<ThreadSummary>> {
+  const params = new URLSearchParams();
 
-  return apiFetch<ThreadSummary[]>(`/threads${search}`);
+  if (options?.query?.trim()) {
+    params.set("q", options.query.trim());
+  }
+
+  if (options?.after) {
+    params.set("after", options.after);
+  }
+
+  if (options?.size) {
+    params.set("size", String(options.size));
+  }
+
+  const search = params.toString();
+
+  return apiFetch<Page<ThreadSummary>>(`/threads${search ? `?${search}` : ""}`);
 }
 
 /*
@@ -31,6 +56,17 @@ export function getThreads(query?: string): Promise<ThreadSummary[]> {
  * (including `turns`) so a thread opened from the sidebar/reload can show
  * its real history instead of only turns generated in the current tab.
  */
+/*
+ * GET /models - public, no auth required (BACKEND_API_REFERENCE.md §8.2,
+ * P6): [{ id: string }]. No display metadata is returned - label by id.
+ * FREE-plan gating (only "auto" works, others silently downgrade
+ * server-side) is a client-side UI decision layered on top of this list,
+ * not something this endpoint itself encodes.
+ */
+export function getModels(): Promise<{ id: string }[]> {
+  return apiFetch<{ id: string }[]>("/models", { method: "GET", skipAuth: true });
+}
+
 export async function createThread(
   request: CreateThreadRequest,
 ): Promise<Response> {
@@ -80,26 +116,41 @@ export function revokeShare(threadId: string): Promise<void> {
 }
 
 async function fetchSse(path: string, body: object): Promise<Response> {
-  const headers = new Headers({
-    Accept: "text/event-stream",
-    "Content-Type": "application/json",
-    "Cache-Control": "no-cache",
-  });
+  const buildHeaders = (accessToken: string | null) => {
+    const headers = new Headers({
+      Accept: "text/event-stream",
+      "Content-Type": "application/json",
+      "Cache-Control": "no-cache",
+    });
 
-  const accessToken = getAccessToken();
+    if (accessToken) {
+      headers.set("Authorization", `Bearer ${accessToken}`);
+    }
 
-  if (accessToken) {
-    headers.set("Authorization", `Bearer ${accessToken}`);
-  }
+    return headers;
+  };
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const accessToken = await getAccessToken();
+
+  let response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
-    headers,
+    headers: buildHeaders(accessToken),
     body: JSON.stringify(body),
   });
 
+  if (response.status === 401) {
+    const refreshedAccessToken = await handleUnauthorizedResponse(response);
+
+    if (refreshedAccessToken) {
+      response = await fetch(`${getApiBaseUrl()}${path}`, {
+        method: "POST",
+        headers: buildHeaders(refreshedAccessToken),
+        body: JSON.stringify(body),
+      });
+    }
+  }
+
   if (!response.ok) {
-    handleUnauthorizedResponse(response);
     throw await parseApiError(response);
   }
 

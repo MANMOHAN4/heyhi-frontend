@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/tooltip";
 
 import { useSubscriptionQuery } from "@/features/billing/useSubscriptionQuery";
-import { MODEL_IDS, type ModelId } from "@/lib/constants";
+import { useModelsQuery } from "@/features/conversation/useModelsQuery";
+import { KNOWN_MODEL_DESCRIPTIONS, KNOWN_MODEL_LABELS } from "@/lib/constants";
 
 type ModelSelectProps = {
   value: string;
@@ -24,26 +25,14 @@ type ModelSelectProps = {
   disabled?: boolean;
 };
 
-const MODEL_LABELS: Record<ModelId, string> = {
-  auto: "Auto",
-  "groq-llama-3.3-70b": "Llama 3.3 70B",
-  "gemini-flash-latest": "Gemini Flash",
-};
-
-const MODEL_DESCRIPTIONS: Record<ModelId, string> = {
-  auto: "Automatically uses the default model.",
-  "groq-llama-3.3-70b":
-    "A capable general-purpose model for reasoning and writing.",
-  "gemini-flash-latest":
-    "A fast model for everyday questions and quick responses.",
-};
-
 export function ModelSelect({
   value,
   onValueChange,
   disabled = false,
 }: ModelSelectProps) {
-  const { data: subscription, isLoading } = useSubscriptionQuery();
+  const { data: subscription, isLoading: isLoadingSubscription } =
+    useSubscriptionQuery();
+  const { data: models, isLoading: isLoadingModels } = useModelsQuery();
 
   const canChooseModel =
     subscription?.plan === "PRO" || subscription?.plan === "ENTERPRISE";
@@ -54,7 +43,14 @@ export function ModelSelect({
    * replaced by the backend default. Therefore, the selector is hidden
    * entirely unless the subscription plan is PRO or ENTERPRISE.
    */
-  if (isLoading || !canChooseModel) {
+  if (isLoadingSubscription || isLoadingModels || !canChooseModel) {
+    return null;
+  }
+
+  // GET /models failed or returned nothing usable - fail closed rather than
+  // showing an empty/broken picker; "auto" (the backend's own default) still
+  // applies with no selector shown at all.
+  if (!models || models.length === 0) {
     return null;
   }
 
@@ -90,14 +86,18 @@ export function ModelSelect({
         <SelectGroup>
           <SelectLabel>Available models</SelectLabel>
 
-          {MODEL_IDS.map((modelId) => (
+          {models.map(({ id: modelId }) => (
             <SelectItem key={modelId} value={modelId}>
               <div className="flex flex-col gap-0.5 py-0.5">
-                <span className="text-sm">{MODEL_LABELS[modelId]}</span>
-
-                <span className="text-xs text-muted-foreground">
-                  {MODEL_DESCRIPTIONS[modelId]}
+                <span className="text-sm">
+                  {KNOWN_MODEL_LABELS[modelId] ?? modelId}
                 </span>
+
+                {KNOWN_MODEL_DESCRIPTIONS[modelId] && (
+                  <span className="text-xs text-muted-foreground">
+                    {KNOWN_MODEL_DESCRIPTIONS[modelId]}
+                  </span>
+                )}
               </div>
             </SelectItem>
           ))}

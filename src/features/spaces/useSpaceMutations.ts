@@ -7,10 +7,12 @@ import {
   deleteSpace,
   inviteCollaborator,
   updateSpace,
+  type DeleteSpaceThreadsAction,
 } from "@/features/spaces/api";
-import { useSpaceRoleStore } from "@/features/spaces/useSpaceRole";
+import { useSeedSpaceRole } from "@/features/spaces/useSpaceRole";
 import { ApiError } from "@/lib/apiError";
 import type {
+  AddFileToSpaceRequest,
   CreateSpaceRequest,
   InviteCollaboratorRequest,
   UpdateSpaceRequest,
@@ -34,11 +36,13 @@ function getSpaceActionError(error: unknown, fallback: string) {
 
 export function useCreateSpace() {
   const queryClient = useQueryClient();
-  const setRole = useSpaceRoleStore((state) => state.setRole);
+  const { setRole } = useSeedSpaceRole();
 
   return useMutation({
     mutationFn: (payload: CreateSpaceRequest) => createSpace(payload),
     onSuccess: async (space) => {
+      // The caller is OWNER of whatever Space they just created, by
+      // definition - seed it instead of a redundant GET /my-role call.
       setRole(space.id, "OWNER");
       await queryClient.invalidateQueries({ queryKey: ["spaces"] });
       toast.success("Space created");
@@ -65,17 +69,31 @@ export function useUpdateSpace(spaceId: string) {
   });
 }
 
+/*
+ * BACKEND_API_REFERENCE.md §8.5: `threads` is required on every call -
+ * "delete" removes the Space's threads along with it, "detach" keeps them
+ * as ordinary personal threads. There's no sane default to fall back to, so
+ * this mutation takes it as an explicit argument rather than hiding it -
+ * the confirm dialog is responsible for making the person choose.
+ */
 export function useDeleteSpace() {
   const queryClient = useQueryClient();
-  const removeRole = useSpaceRoleStore((state) => state.removeRole);
+  const { clearRole } = useSeedSpaceRole();
 
   return useMutation({
-    mutationFn: (spaceId: string) => deleteSpace(spaceId),
-    onSuccess: async (_response, spaceId) => {
-      removeRole(spaceId);
+    mutationFn: ({
+      spaceId,
+      threadsAction,
+    }: {
+      spaceId: string;
+      threadsAction: DeleteSpaceThreadsAction;
+    }) => deleteSpace(spaceId, threadsAction),
+    onSuccess: async (_response, { spaceId }) => {
+      clearRole(spaceId);
       queryClient.removeQueries({ queryKey: ["spaces", "detail", spaceId] });
       queryClient.removeQueries({ queryKey: ["spaces", spaceId] });
       await queryClient.invalidateQueries({ queryKey: ["spaces"] });
+      await queryClient.invalidateQueries({ queryKey: ["threads"] });
       toast.success("Space deleted");
     },
     onError: (error) => {
@@ -88,11 +106,11 @@ export function useAddFileToSpace(spaceId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (fileId: string) =>
-      addFileToSpace(spaceId, { file_id: fileId }),
+    mutationFn: (payload: AddFileToSpaceRequest) =>
+      addFileToSpace(spaceId, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["spaces", "detail", spaceId],
+        queryKey: ["spaces", spaceId, "files"],
       });
       toast.success("File added to Space");
     },

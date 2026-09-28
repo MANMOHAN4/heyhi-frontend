@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import {
   getAdminUsers,
@@ -6,6 +7,8 @@ import {
   getHealth,
   getModerationQueue,
 } from "@/features/admin/api";
+
+const ADMIN_LIST_PAGE_SIZE = 20;
 
 /*
  * These hooks deliberately do not perform their own isAdmin check.
@@ -24,22 +27,49 @@ export function useAdminUsersQuery() {
   });
 }
 
+/*
+ * GET /admin/audit-log is cursor-paginated (BACKEND_API_REFERENCE.md §8.6).
+ */
 export function useAuditLogQuery() {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["admin", "audit-log"],
-    queryFn: getAuditLog,
+    queryFn: ({ pageParam }) =>
+      getAuditLog(pageParam ?? undefined, ADMIN_LIST_PAGE_SIZE),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
   });
+
+  const entries = useMemo(
+    () => query.data?.pages.flatMap((page) => page.items) ?? [],
+    [query.data],
+  );
+
+  return { ...query, entries };
 }
 
+/*
+ * GET /admin/moderation-queue is cursor-paginated
+ * (BACKEND_API_REFERENCE.md §8.7).
+ */
 export function useModerationQueueQuery() {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["admin", "moderation-queue"],
-    queryFn: getModerationQueue,
+    queryFn: ({ pageParam }) =>
+      getModerationQueue(pageParam ?? undefined, ADMIN_LIST_PAGE_SIZE),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
   });
+
+  const entries = useMemo(
+    () => query.data?.pages.flatMap((page) => page.items) ?? [],
+    [query.data],
+  );
+
+  return { ...query, entries };
 }
 
 export function useHealthQuery() {

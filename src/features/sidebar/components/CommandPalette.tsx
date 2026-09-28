@@ -8,7 +8,6 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import {
-  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -107,7 +106,7 @@ export function CommandPalette({
   };
 
   return (
-    <Command>
+    <>
       <CommandDialog
         open={open}
         onOpenChange={setOpen}
@@ -154,11 +153,11 @@ export function CommandPalette({
                 )}
 
                 {!threadsQuery.isFetching &&
-                  (threadsQuery.data ?? []).slice(0, 8).map((thread) => (
+                  threadsQuery.threads.slice(0, 8).map((thread) => (
                     <CommandItem
                       key={thread.id}
                       value={`conversation ${thread.title}`}
-                      onSelect={() => goTo(`/t/${thread.id}`)}
+                      onSelect={() => goTo(`/threads/${thread.id}`)}
                     >
                       <CommandIcon className="size-4" />
                       <span className="truncate">{thread.title}</span>
@@ -184,6 +183,6 @@ export function CommandPalette({
           )}
         </CommandList>
       </CommandDialog>
-    </Command>
+    </>
   );
 }

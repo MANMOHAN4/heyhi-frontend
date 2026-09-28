@@ -1,4 +1,14 @@
-export type DocumentStatus = "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+/*
+ * DocumentResponse (BACKEND_API_REFERENCE.md §8.3): { id, filename, status }.
+ * No size/mime/hash/createdAt exposed - the backend genuinely doesn't return
+ * them, this isn't an incomplete mapping.
+ */
+export type DocumentStatus =
+  | "UPLOADING"
+  | "PROCESSING"
+  | "READY"
+  | "FAILED"
+  | "DELETING";
 
 export interface UploadedDocument {
   id: string;

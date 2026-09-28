@@ -25,6 +25,15 @@ export interface UpdateSpaceRequest {
 
 export interface AddFileToSpaceRequest {
   file_id: string;
+  /** Optional per-space display name; defaults to the file's own name if omitted. */
+  display_filename?: string;
+}
+
+export interface SpaceFile {
+  file_id: string;
+  display_name: string;
+  filename: string;
+  status: "UPLOADING" | "PROCESSING" | "READY" | "FAILED" | "DELETING";
 }
 
 export interface InviteCollaboratorRequest {

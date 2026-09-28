@@ -1,6 +1,7 @@
-import { Navigate, Outlet, createBrowserRouter } from "react-router-dom";
+import { Navigate, createBrowserRouter } from "react-router-dom";
 
 import { AppShellLayout } from "@/routes/AppShellLayout";
+import { AuthLayout } from "@/routes/AuthLayout";
 import { AdminRoute } from "@/components/shared/AdminRoute";
 import { ProtectedRoute } from "@/components/shared/ProtectedRoute";
 
@@ -13,6 +14,7 @@ import ThreadPage from "@/routes/conversation/ThreadPage";
 import SharedThreadPage from "@/routes/shared/SharedThreadPage";
 
 import SettingsPage from "@/routes/settings/SettingsPage";
+import BillingPage from "@/routes/settings/BillingPage";
 
 import SpaceDetailPage from "@/routes/spaces/SpaceDetailPage";
 import SpacesListPage from "@/routes/spaces/SpacesListPage";
@@ -22,16 +24,6 @@ import AdminUsersTab from "@/routes/admin/AdminUsersTab";
 import AdminModerationTab from "@/routes/admin/AdminModerationTab";
 import AdminAuditLogTab from "@/routes/admin/AdminAuditLogTab";
 import AdminHealthTab from "@/routes/admin/AdminHealthTab";
-
-function AuthLayout() {
-  return (
-    <main className="grid min-h-screen place-items-center bg-background px-4 py-10 text-foreground">
-      <section className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
-        <Outlet />
-      </section>
-    </main>
-  );
-}
 
 function NotFoundPage() {
   return (
@@ -71,7 +63,12 @@ export const router = createBrowserRouter([
   },
 
   {
-    path: "/oauth-complete",
+    /*
+     * Must match the backend's frontend-callback-url exactly
+     * (application.yml default: http://localhost:5173/auth/callback).
+     * If that config changes, this path needs to change with it.
+     */
+    path: "/auth/callback",
     element: <OAuthCompletePage />,
   },
 
@@ -88,7 +85,7 @@ export const router = createBrowserRouter([
         element: <ThreadPage />,
       },
       {
-        path: "/t/:threadId",
+        path: "/threads/:threadId",
         element: <ThreadPage />,
       },
       {
@@ -105,6 +102,10 @@ export const router = createBrowserRouter([
           {
             path: "/settings",
             element: <SettingsPage />,
+          },
+          {
+            path: "/settings/billing",
+            element: <BillingPage />,
           },
           {
             element: <AdminRoute />,

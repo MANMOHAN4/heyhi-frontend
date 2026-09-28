@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { Settings2, Trash2 } from "lucide-react"
+import { CreditCard, Settings2, Trash2 } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -44,6 +45,32 @@ export default function SettingsPage() {
         </header>
 
         <ProfileForm user={user} />
+
+        <section className="rounded-xl border border-border/80 bg-card/60 p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <CreditCard className="size-4" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-semibold">Billing</h2>
+
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                Manage your plan, subscription status, and invoice history.
+              </p>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                render={<Link to="/settings/billing" />}
+              >
+                Go to billing
+              </Button>
+            </div>
+          </div>
+        </section>
 
         <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
           <div className="flex items-start gap-3">

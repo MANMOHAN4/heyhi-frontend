@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/apiClient";
+import type { Page } from "@/lib/pagination";
 import type {
   CheckoutOrderResponse,
   Invoice,
@@ -25,8 +26,23 @@ export function getSubscription(): Promise<Subscription> {
   });
 }
 
-export function getInvoices(): Promise<Invoice[]> {
-  return apiFetch<Invoice[]>("/billing/invoices", {
+/*
+ * GET /billing/invoices is cursor-paginated
+ * (BACKEND_API_REFERENCE.md §8.4): Page<InvoiceResponse> = { items,
+ * next_cursor }. Currently returns an empty page for every user regardless
+ * of plan - there is no production code path that writes invoice rows yet
+ * (Appendix A #6) - but the shape itself is real once that's wired up.
+ */
+export function getInvoices(after?: string, size = 20): Promise<Page<Invoice>> {
+  const params = new URLSearchParams();
+
+  if (after) {
+    params.set("after", after);
+  }
+
+  params.set("size", String(size));
+
+  return apiFetch<Page<Invoice>>(`/billing/invoices?${params.toString()}`, {
     method: "GET",
   });
 }

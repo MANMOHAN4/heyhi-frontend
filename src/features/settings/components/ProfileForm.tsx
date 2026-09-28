@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 import { updateMyProfile } from "@/features/settings/api";
+import { resendVerificationEmail } from "@/features/auth/api";
 import { useAuthStore } from "@/features/auth/useAuthStore";
 import { ApiError } from "@/lib/apiError";
 import type { User } from "@/features/auth/types";
@@ -53,6 +54,24 @@ export function ProfileForm({ user }: ProfileFormProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(user.display_name ?? "");
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [resendSent, setResendSent] = useState(false);
+
+  const resendMutation = useMutation({
+    mutationFn: resendVerificationEmail,
+    onSuccess: () => {
+      setResendSent(true);
+      toast.success("Verification email sent", {
+        description: `Check ${user.email} for the link.`,
+      });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof ApiError && error.message
+          ? error.message
+          : "Couldn't send the verification email. Please try again.",
+      );
+    },
+  });
 
   useEffect(() => {
     if (!isEditing) {
@@ -245,13 +264,29 @@ export function ProfileForm({ user }: ProfileFormProps) {
                 Verified
               </Badge>
             ) : (
-              <Badge
-                variant="secondary"
-                className="shrink-0 gap-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300"
-              >
-                <CircleAlert className="size-3.5" />
-                Unverified
-              </Badge>
+              <>
+                <Badge
+                  variant="secondary"
+                  className="shrink-0 gap-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                >
+                  <CircleAlert className="size-3.5" />
+                  Unverified
+                </Badge>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={resendMutation.isPending || resendSent}
+                  onClick={() => resendMutation.mutate()}
+                >
+                  {resendMutation.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : null}
+                  {resendSent ? "Email sent" : "Resend verification"}
+                </Button>
+              </>
             )}
           </div>
 

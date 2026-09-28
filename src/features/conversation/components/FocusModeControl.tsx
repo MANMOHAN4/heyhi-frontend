@@ -104,7 +104,12 @@ export function FocusModeControl({
           className="h-8 min-w-28 bg-muted/40 text-xs"
           aria-label="Focus mode"
         >
-          <SelectValue placeholder="Focus mode" />
+          <SelectValue placeholder="Focus mode">
+            {(selected: string) =>
+              FOCUS_MODE_OPTIONS.find((option) => option.value === selected)
+                ?.label ?? selected
+            }
+          </SelectValue>
         </SelectTrigger>
 
         <SelectContent align="start">
@@ -149,10 +154,10 @@ export function FocusModeControl({
                 <ToggleGroupItem
                   value={option.value}
                   aria-label={option.label}
-                  className="h-8 gap-1.5 rounded-md px-2.5 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  className="h-8 gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground"
                 >
                   <Icon className="size-3.5" />
-                  <span>{option.label}</span>
+                  <span className="hidden lg:inline">{option.label}</span>
                 </ToggleGroupItem>
               }
             />

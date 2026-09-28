@@ -1,5 +1,4 @@
 import { CalendarClock, Sparkles } from "lucide-react"
-import { Link } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,10 +10,13 @@ type ProSearchQuotaStateProps = {
    * 429 PRO_SEARCH_QUOTA_EXCEEDED
    *
    * Example:
-   * "Daily Pro Search limit of 10 reached. Try again tomorrow."
+   * "You've used today's 2 Pro Searches. Try again tomorrow."
    *
-   * The backend owns the actual configured daily number, so render this
-   * message rather than hardcoding a quota value in the client.
+   * BACKEND_API_REFERENCE.md P6: the limit is 2/day and is NOT plan-based
+   * today - same for FREE, PRO, and ENTERPRISE. The backend owns the actual
+   * configured number, so render this message rather than hardcoding a
+   * quota value in the client, and don't imply upgrading raises it (it
+   * currently doesn't - see the removed "View Pro plan" CTA below).
    */
   message?: string
 
@@ -31,7 +33,7 @@ export function ProSearchQuotaState({
 }: ProSearchQuotaStateProps) {
   const description =
     message ||
-    "You have used all available Pro Searches for today. Your allowance resets tomorrow."
+    "You've used today's Pro Searches. Your allowance resets tomorrow."
 
   return (
     <Card className="overflow-hidden border-violet-500/25 bg-violet-500/[0.06] shadow-[0_12px_32px_-24px_rgba(139,92,246,0.65)]">
@@ -61,13 +63,13 @@ export function ProSearchQuotaState({
 
             <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               <CalendarClock className="size-3.5" />
-              Resets tomorrow
+              Resets tomorrow — same daily limit for every plan
             </div>
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap gap-2">
-          {onUseRegularSearch && (
+        {onUseRegularSearch && (
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
@@ -76,17 +78,8 @@ export function ProSearchQuotaState({
             >
               Use regular search
             </Button>
-          )}
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-violet-700 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
-            render={<Link to="/settings/billing" />}
-          >
-            View Pro plan
-          </Button>
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

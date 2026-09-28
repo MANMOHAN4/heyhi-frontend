@@ -110,6 +110,9 @@ function DesktopSidebar({ onOpenCommand }: DesktopSidebarProps) {
     isLoading: threadsLoading,
     isError: threadsError,
     refetch: refetchThreads,
+    hasMore: hasMoreThreads,
+    isLoadingMore: isLoadingMoreThreads,
+    loadMore: loadMoreThreads,
   } = useThreadSearch();
 
   const spacesQuery = useSpacesQuery();
@@ -120,7 +123,6 @@ function DesktopSidebar({ onOpenCommand }: DesktopSidebarProps) {
       className="hidden border-r border-sidebar-border md:flex"
     >
       <SidebarHeader className="gap-3 px-3 py-4">
-        <div className="px-1"></div>
         <AppLogo />
         <Button
           variant="outline"
@@ -198,13 +200,28 @@ function DesktopSidebar({ onOpenCommand }: DesktopSidebarProps) {
                 )}
 
                 {!threadsLoading && !threadsError && threads.length > 0 && (
-                  <SidebarMenu>
-                    {threads.map((thread) => (
-                      <SidebarMenuItem key={thread.id}>
-                        <SidebarThreadItem thread={thread} />
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
+                  <>
+                    <SidebarMenu>
+                      {threads.map((thread) => (
+                        <SidebarMenuItem key={thread.id}>
+                          <SidebarThreadItem thread={thread} />
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+
+                    {hasMoreThreads && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-1 w-full text-xs text-muted-foreground"
+                        disabled={isLoadingMoreThreads}
+                        onClick={() => loadMoreThreads()}
+                      >
+                        {isLoadingMoreThreads ? "Loading…" : "Load more"}
+                      </Button>
+                    )}
+                  </>
                 )}
               </SidebarGroupContent>
             </SidebarGroup>
@@ -275,6 +292,9 @@ function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
     isLoading: threadsLoading,
     isError: threadsError,
     refetch: refetchThreads,
+    hasMore: hasMoreThreads,
+    isLoadingMore: isLoadingMoreThreads,
+    loadMore: loadMoreThreads,
   } = useThreadSearch();
 
   const spacesQuery = useSpacesQuery();
@@ -348,6 +368,19 @@ function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
                       onNavigate={closeSheet}
                     />
                   ))}
+
+                  {hasMoreThreads && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mt-1 w-full text-xs text-muted-foreground"
+                      disabled={isLoadingMoreThreads}
+                      onClick={() => loadMoreThreads()}
+                    >
+                      {isLoadingMoreThreads ? "Loading…" : "Load more"}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

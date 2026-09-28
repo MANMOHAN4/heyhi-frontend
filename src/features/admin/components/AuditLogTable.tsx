@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { ClipboardList, ShieldCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,7 @@ function getActionBadgeClass(action: string): string {
 
 export function AuditLogTable() {
   const auditLogQuery = useAuditLogQuery();
-  const entries = auditLogQuery.data ?? [];
+  const entries = auditLogQuery.entries;
 
   return (
     <Card className="border-border/80 bg-card/80">
@@ -146,6 +147,20 @@ export function AuditLogTable() {
               </Table>
             </div>
           )}
+
+        {auditLogQuery.hasNextPage && (
+          <div className="mt-3 flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={auditLogQuery.isFetchingNextPage}
+              onClick={() => auditLogQuery.fetchNextPage()}
+            >
+              {auditLogQuery.isFetchingNextPage ? "Loading…" : "Load more"}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

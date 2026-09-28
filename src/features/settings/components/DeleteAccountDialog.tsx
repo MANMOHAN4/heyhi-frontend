@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, TriangleAlert } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -26,8 +26,13 @@ type DeleteAccountDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-function getDeleteAccountErrorMessage(error: unknown): string {
+function getDeleteAccountErrorMessage(error: unknown): string | null {
   if (error instanceof ApiError) {
+    if (error.code === "ACTIVE_SUBSCRIPTION") {
+      // Handled as a dedicated inline notice instead of a toast - see below.
+      return null;
+    }
+
     if (error.status === 401 || error.code === "UNAUTHORIZED") {
       return "Your session has expired. Please sign in again.";
     }
@@ -48,15 +53,19 @@ export function DeleteAccountDialog({
   const logout = useAuthStore((state) => state.logout);
 
   const [confirmation, setConfirmation] = useState("");
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
   const deleteAccountMutation = useMutation({
     mutationFn: deleteMyAccount,
 
     onSuccess: () => {
       /*
-       * The backend returns 202 Accepted. The specification says to treat
-       * this as immediate deletion on the frontend: clear in-memory tokens,
-       * clear account-scoped cache, then leave the authenticated app.
+       * BACKEND_API_REFERENCE.md §8.1/P16: 202 does NOT mean immediate
+       * deletion - the account enters a 30-day grace period, and signing
+       * back in during that window reactivates it automatically. Still log
+       * out and leave the authenticated app (the account is scheduled for
+       * removal and shouldn't keep behaving as a normal session), but say
+       * so accurately rather than "has been deleted".
        */
       logout();
       queryClient.clear();
@@ -64,18 +73,32 @@ export function DeleteAccountDialog({
       setConfirmation("");
       onOpenChange(false);
 
-      toast.success("Your account has been deleted.");
+      toast.success("Your account is scheduled for deletion.", {
+        description:
+          "Sign in again within 30 days to cancel and keep your account.",
+        duration: 8000,
+      });
       navigate("/login", { replace: true });
     },
 
     onError: (error) => {
-      toast.error(getDeleteAccountErrorMessage(error));
+      if (error instanceof ApiError && error.code === "ACTIVE_SUBSCRIPTION") {
+        setHasActiveSubscription(true);
+        return;
+      }
+
+      const message = getDeleteAccountErrorMessage(error);
+
+      if (message) {
+        toast.error(message);
+      }
     },
   });
 
   useEffect(() => {
     if (!open) {
       setConfirmation("");
+      setHasActiveSubscription(false);
       deleteAccountMutation.reset();
     }
   }, [open]);
@@ -99,6 +122,7 @@ export function DeleteAccountDialog({
       return;
     }
 
+    setHasActiveSubscription(false);
     deleteAccountMutation.mutate();
   };
 
@@ -112,11 +136,29 @@ export function DeleteAccountDialog({
           </AlertDialogTitle>
 
           <AlertDialogDescription>
-            This permanently deletes your heyHi account and removes your
-            conversation history, Spaces, uploaded documents, billing data, and
-            associated access. This action cannot be undone.
+            This schedules your heyHi account for deletion after a 30-day
+            grace period, during which your conversation history, Spaces,
+            uploaded documents, and access remain intact. Signing back in
+            during that window cancels the deletion automatically.
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        {hasActiveSubscription && (
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+          >
+            <p className="font-medium">
+              Cancel your paid subscription before deleting your account.
+            </p>
+            <Link
+              to="/settings/billing"
+              className="mt-1 inline-block underline underline-offset-2 hover:no-underline"
+            >
+              Go to billing
+            </Link>
+          </div>
+        )}
 
         <div className="space-y-2">
           <label

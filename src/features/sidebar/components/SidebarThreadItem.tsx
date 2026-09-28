@@ -173,7 +173,7 @@ export function SidebarThreadItem({
       ) : (
         <>
           <NavLink
-            to={`/t/${thread.id}`}
+            to={`/threads/${thread.id}`}
             onClick={onNavigate}
             title={thread.title}
             className={({ isActive }) =>

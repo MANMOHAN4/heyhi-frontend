@@ -1,10 +1,17 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { suspendUser, unsuspendUser } from "@/features/admin/api";
+import {
+  reviewModerationEntry,
+  suspendUser,
+  unsuspendUser,
+} from "@/features/admin/api";
 import { ApiError } from "@/lib/apiError";
 
-function getAdminActionErrorMessage(error: unknown, fallback: string): string {
+export function getAdminActionErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
   if (!(error instanceof ApiError)) {
     return fallback;
   }
@@ -82,6 +89,37 @@ export function useUnsuspendUser() {
         getAdminActionErrorMessage(
           error,
           "Couldn't unsuspend this user. Please try again.",
+        ),
+      );
+    },
+  });
+}
+
+/*
+ * POST /admin/moderation-queue/{id}/review (BACKEND_API_REFERENCE.md §8.7,
+ * P19) returns 200 with no body - nothing to merge into the cache directly,
+ * so just invalidate and let the list refetch, exactly as the reference's
+ * cross-cutting guidance for this action says ("-> refetch").
+ */
+export function useReviewModerationEntry() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (entryId: string) => reviewModerationEntry(entryId),
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["admin", "moderation-queue"],
+      });
+
+      toast.success("Marked as reviewed");
+    },
+
+    onError: (error) => {
+      toast.error(
+        getAdminActionErrorMessage(
+          error,
+          "Couldn't mark this entry reviewed. Please try again.",
         ),
       );
     },

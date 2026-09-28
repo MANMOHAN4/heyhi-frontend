@@ -66,8 +66,8 @@ export default function BillingPage() {
                     </p>
 
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Choose premium AI models and run deeper Pro Search
-                      workflows.
+                      Choose premium AI models for your questions. Pro Search
+                      (2 runs/day) is available on every plan, including Free.
                     </p>
                   </div>
 

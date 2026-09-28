@@ -20,7 +20,6 @@ import { SpaceFilesList } from "@/features/spaces/components/SpaceFilesList";
 import { SpaceHeader } from "@/features/spaces/components/SpaceHeader";
 import { useSpaceRole } from "@/features/spaces/useSpaceRole";
 import { useSpaceQuery } from "@/features/spaces/useSpaceQuery";
-import type { UploadedDocument } from "@/features/files/types";
 
 export default function SpaceDetailPage() {
   const { spaceId } = useParams<{ spaceId: string }>();
@@ -32,13 +31,6 @@ export default function SpaceDetailPage() {
   const [addFileOpen, setAddFileOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  /*
-   * Known backend gap:
-   * no GET /spaces/{spaceId}/files endpoint is currently documented.
-   * This local list shows documents added during the current page session.
-   */
-  const [sessionFiles, setSessionFiles] = useState<UploadedDocument[]>([]);
 
   if (spaceQuery.isLoading) {
     return <SpaceDetailSkeleton />;
@@ -125,7 +117,7 @@ export default function SpaceDetailPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.9fr)]">
-          <SpaceFilesList filesAddedThisSession={sessionFiles} />
+          <SpaceFilesList spaceId={space.id} />
 
           {isViewerOrAbove && <CollaboratorsList spaceId={space.id} />}
         </div>
@@ -135,9 +127,6 @@ export default function SpaceDetailPage() {
         spaceId={space.id}
         open={addFileOpen}
         onOpenChange={setAddFileOpen}
-        onUploaded={(file) => {
-          setSessionFiles((previous) => [...previous, file]);
-        }}
       />
 
       <InviteCollaboratorDialog

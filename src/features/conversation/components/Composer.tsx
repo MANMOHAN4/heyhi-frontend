@@ -38,6 +38,8 @@ type ComposerProps = {
   onStopStreaming?: () => void;
 };
 
+const MAX_TEXTAREA_HEIGHT_PX = 220;
+
 export function Composer({
   threadId,
   spaceId,
@@ -54,6 +56,17 @@ export function Composer({
   const [model, setModel] = useState("auto");
   const [fileIds, setFileIds] = useState<string[]>([]);
   const [isProSearch, setIsProSearch] = useState(false);
+
+  /*
+   * Auto-grow the textarea with its content (up to MAX_TEXTAREA_HEIGHT_PX,
+   * then it scrolls) instead of a fixed 3-row box.
+   */
+  const resizeTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
+  };
 
   const isContinuation = Boolean(threadId);
   const canUseProSearch = Boolean(accessToken) && !isContinuation;
@@ -87,6 +100,7 @@ export function Composer({
     setIsProSearch(false);
 
     window.setTimeout(() => {
+      resizeTextarea();
       textareaRef.current?.focus();
     }, 0);
   };
@@ -107,12 +121,12 @@ export function Composer({
     <div className="w-full">
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-border/80 bg-card/95 p-2 shadow-[0_16px_45px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl transition-all duration-200 focus-within:border-ring/60 focus-within:shadow-[0_20px_55px_-24px_rgba(0,0,0,0.95)]"
+        className="rounded-3xl border border-border/70 bg-card/90 p-2 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.6)] backdrop-blur-xl transition-[border-color,box-shadow] duration-200 focus-within:border-foreground/25 focus-within:shadow-[0_12px_40px_-12px_rgba(0,0,0,0.75)]"
       >
-        <InputGroup className="min-h-28 border-0 bg-transparent shadow-none">
+        <InputGroup className="rounded-none border-0 bg-transparent shadow-none ring-0 dark:bg-transparent has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-transparent">
           <InputGroupTextarea
             ref={textareaRef}
-            rows={3}
+            rows={1}
             value={query}
             disabled={isStreaming}
             maxLength={QUERY_MAX_LENGTH + 50}
@@ -120,9 +134,12 @@ export function Composer({
               isContinuation ? "Ask a follow-up question…" : "Ask anything…"
             }
             aria-label="Ask a question"
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              resizeTextarea();
+            }}
             onKeyDown={handleKeyDown}
-            className="min-h-24 resize-none px-3 pt-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground/70"
+            className="min-h-[3.25rem] resize-none overflow-y-auto px-3 pt-3 text-[15px] leading-6 text-foreground placeholder:text-muted-foreground/70"
           />
 
           <InputGroupAddon
@@ -204,7 +221,7 @@ export function Composer({
                 </span>
               )}
 
-              {!isStreaming && (
+              {!isStreaming && query.trim().length > 0 && (
                 <span className="hidden text-xs text-muted-foreground lg:inline-flex lg:items-center lg:gap-1">
                   <Kbd>Enter</Kbd>
                   <span>send</span>
@@ -221,7 +238,7 @@ export function Composer({
                         variant="secondary"
                         onClick={onStopStreaming}
                         aria-label="Stop generating"
-                        className="rounded-xl"
+                        className="rounded-full"
                       >
                         <Square className="size-3.5 fill-current" />
                       </Button>
@@ -239,7 +256,7 @@ export function Composer({
                         size="icon-sm"
                         disabled={!canSubmit}
                         aria-label="Send question"
-                        className="rounded-xl"
+                        className="rounded-full"
                       >
                         <SendHorizontal className="size-4" />
                       </Button>
@@ -255,14 +272,14 @@ export function Composer({
       </form>
 
       {spaceId && !isContinuation && (
-        <p className="mt-2 px-1 text-xs text-muted-foreground">
+        <p className="mt-2.5 px-1 text-center text-xs text-muted-foreground">
           This conversation will use this Space&apos;s shared files and custom
           instructions.
         </p>
       )}
 
       {!accessToken && !isContinuation && (
-        <p className="mt-2 px-1 text-xs text-muted-foreground">
+        <p className="mt-2.5 px-1 text-center text-xs text-muted-foreground/80">
           You are using a guest session. Sign in to save your conversation
           history.
         </p>

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { CheckCircle2, CircleAlert, FileText, ReceiptText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -85,7 +86,7 @@ export function InvoiceTable() {
     );
   }
 
-  const invoices = invoicesQuery.data ?? [];
+  const invoices = invoicesQuery.invoices;
 
   return (
     <Card className="border-border/80 bg-card/80">
@@ -144,6 +145,20 @@ export function InvoiceTable() {
                 })}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {invoicesQuery.hasNextPage && (
+          <div className="mt-3 flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={invoicesQuery.isFetchingNextPage}
+              onClick={() => invoicesQuery.fetchNextPage()}
+            >
+              {invoicesQuery.isFetchingNextPage ? "Loading…" : "Load more"}
+            </Button>
           </div>
         )}
       </CardContent>

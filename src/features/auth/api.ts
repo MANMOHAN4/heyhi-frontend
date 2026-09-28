@@ -63,6 +63,12 @@ export function verifyEmail(token: string): Promise<void> {
   );
 }
 
+export function resendVerificationEmail(): Promise<void> {
+  return apiFetch<void>("/auth/resend-verification", {
+    method: "POST",
+  });
+}
+
 /*
  * GET /auth/google is a real HTTP redirect to Google's consent screen.
  * It must never be called through fetch()/apiFetch() — the browser itself

@@ -18,7 +18,7 @@ type LoginFormProps = {
 export function LoginForm({ redirectTo }: LoginFormProps) {
   const navigate = useNavigate();
 
-  const storeLogin = useAuthStore((state) => state.storeLogin);
+  const storeLogin = useAuthStore((state) => state.login);
   const setUser = useAuthStore((state) => state.setUser);
 
   const [email, setEmail] = useState("");
@@ -30,11 +30,11 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
 
     onSuccess: async (tokens) => {
       /*
-       * The store only persists the access token (see useAuthStore/
-       * 01-backend-reference.md - refresh_token is issued but unusable,
-       * there is no /auth/refresh endpoint to redeem it with).
+       * BACKEND_API_REFERENCE.md §4: refresh_token is real and rotates on
+       * every use (POST /auth/refresh). Store the full pair plus the
+       * access-token deadline so apiClient can refresh proactively/on 401.
        */
-      storeLogin(tokens.access_token);
+      storeLogin(tokens.access_token, tokens.refresh_token, tokens.expires_in);
 
       /*
        * The sidebar UserMenu (and anything else keying off

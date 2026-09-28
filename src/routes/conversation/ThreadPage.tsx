@@ -26,7 +26,7 @@ export default function ThreadPage() {
 
   /*
    * React Router does not remount this component when only the
-   * :threadId param changes (index route and /t/:threadId share the same
+   * :threadId param changes (index route and /threads/:threadId share the same
    * element type), so local state like `turns` would otherwise leak from
    * one thread into the next when navigating sidebar item A -> B. Reset
    * whenever the route's thread id actually changes.
@@ -75,7 +75,7 @@ export default function ThreadPage() {
       return;
     }
 
-    navigate(`/t/${createdThreadId}`, {
+    navigate(`/threads/${createdThreadId}`, {
       replace: true,
     });
   }, [createdThreadId, navigate, routeThreadId]);
@@ -216,27 +216,37 @@ export default function ThreadPage() {
           }
         />
 
-        {quotaExceeded && (
-          <p className="mx-auto mb-3 max-w-3xl rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-            {quotaExceeded.message}
-          </p>
-        )}
+        {/*
+          * Composer dock: pinned to the bottom of the column, but the card
+          * itself is centered and width-limited with side + bottom breathing
+          * room, the way Claude / ChatGPT / Perplexity float their input
+          * instead of stretching it edge-to-edge against the sidebar.
+          */}
+        <div className="shrink-0 px-3 pb-3 pt-2 sm:px-5 sm:pb-4">
+          <div className="mx-auto w-full max-w-3xl">
+            {quotaExceeded && (
+              <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                {quotaExceeded.message}
+              </p>
+            )}
 
-        {streamError && (
-          <p
-            role="alert"
-            className="mx-auto mb-3 max-w-3xl rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"
-          >
-            {streamError}
-          </p>
-        )}
+            {streamError && (
+              <p
+                role="alert"
+                className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+              >
+                {streamError}
+              </p>
+            )}
 
-        <Composer
-          threadId={activeThreadId}
-          isStreaming={isStreaming}
-          onSubmit={handleSubmit}
-          onStopStreaming={cancelStream}
-        />
+            <Composer
+              threadId={activeThreadId}
+              isStreaming={isStreaming}
+              onSubmit={handleSubmit}
+              onStopStreaming={cancelStream}
+            />
+          </div>
+        </div>
       </div>
     </main>
   );

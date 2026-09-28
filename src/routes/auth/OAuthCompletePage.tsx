@@ -25,19 +25,40 @@ export default function OAuthCompletePage() {
       );
 
       const accessToken = fragment.get("access_token");
+      const refreshToken = fragment.get("refresh_token");
+      const expiresInRaw = fragment.get("expires_in");
 
-      if (!accessToken) {
+      /*
+       * Strip the hash immediately, regardless of outcome: tokens sit in
+       * the fragment specifically so they're never sent to a server or
+       * logged (BACKEND_API_REFERENCE.md §4), but they'd still linger
+       * visibly in the address bar / browser history / any screen share
+       * until we remove them.
+       */
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+
+      if (!accessToken || !refreshToken || !expiresInRaw) {
         if (!cancelled) {
           setStatus("error");
           setMessage(
-            "We could not find an access token in the sign-in response.",
+            "We could not find a complete sign-in response from Google.",
           );
         }
 
         return;
       }
 
-      login(accessToken);
+      const expiresIn = Number(expiresInRaw);
+
+      login(
+        accessToken,
+        refreshToken,
+        Number.isFinite(expiresIn) ? expiresIn : 900,
+      );
 
       try {
         const user = await getCurrentUser();
