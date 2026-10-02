@@ -58,7 +58,14 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        {children}
+        {/*
+         * cmdk primitives (Input/List/Item) read a shared store from the
+         * Command root's context via useSyncExternalStore(store.subscribe).
+         * Without this <Command> wrapper that store is undefined and the first
+         * child throws "Cannot read properties of undefined (reading
+         * 'subscribe')" the moment the dialog opens.
+         */}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   )

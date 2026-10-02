@@ -1,4 +1,6 @@
 import * as React from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ExternalLink, FileText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -127,6 +129,66 @@ type AnswerWithCitationsProps = {
   className?: string;
 };
 
+/*
+ * Minimal structural view of a hast node - enough to walk/rewrite the tree
+ * without pulling in @types/hast. Kept local so the build has no extra type
+ * dependency.
+ */
+type MdNode = {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: MdNode[];
+};
+
+/*
+ * Rehype plugin: the model emits inline citation markers like "[1]" as plain
+ * text. CommonMark leaves an unmatched "[1]" as a literal text node, so here we
+ * split those text nodes and replace each marker with a <cite data-marker="n">
+ * element. A `components.cite` override then renders it as an interactive
+ * CitationBadge. Code/pre are skipped so markers inside code samples stay literal.
+ */
+function rehypeCitationMarkers() {
+  const transform = (node: MdNode): void => {
+    if (!node.children || node.tagName === "code" || node.tagName === "pre") {
+      return;
+    }
+
+    const next: MdNode[] = [];
+
+    for (const child of node.children) {
+      if (child.type === "text" && child.value && /\[\d+\]/.test(child.value)) {
+        for (const part of child.value.split(/(\[\d+\])/g)) {
+          if (!part) {
+            continue;
+          }
+
+          const match = /^\[(\d+)\]$/.exec(part);
+
+          next.push(
+            match
+              ? {
+                  type: "element",
+                  tagName: "cite",
+                  properties: { dataMarker: match[1] },
+                  children: [{ type: "text", value: match[1] }],
+                }
+              : { type: "text", value: part },
+          );
+        }
+      } else {
+        transform(child);
+        next.push(child);
+      }
+    }
+
+    node.children = next;
+  };
+
+  return (tree: unknown): void => transform(tree as MdNode);
+}
+
 export function AnswerWithCitations({
   answerText,
   citations,
@@ -138,31 +200,37 @@ export function AnswerWithCitations({
     [citations, sources],
   );
 
-  const content = React.useMemo(() => {
-    return answerText.split(/(\[\d+\])/g).map((part, index) => {
-      const match = part.match(/^\[(\d+)\]$/);
+  const components = React.useMemo<Components>(
+    () => ({
+      cite({ node }) {
+        const marker = Number(
+          (node?.properties as Record<string, unknown> | undefined)?.dataMarker,
+        );
 
-      if (!match) {
-        return <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>;
-      }
+        if (!Number.isInteger(marker)) {
+          return null;
+        }
 
-      const markerIndex = Number(match[1]);
-
-      return (
-        <CitationBadge
-          key={`${markerIndex}-${index}`}
-          markerIndex={markerIndex}
-          source={citationSourceMap.get(markerIndex)}
-        />
-      );
-    });
-  }, [answerText, citationSourceMap]);
+        return (
+          <CitationBadge
+            markerIndex={marker}
+            source={citationSourceMap.get(marker)}
+          />
+        );
+      },
+    }),
+    [citationSourceMap],
+  );
 
   return (
-    <div
-      className={`whitespace-pre-wrap break-words leading-7 ${className ?? ""}`}
-    >
-      {content}
+    <div className={`chat-markdown min-w-0 ${className ?? ""}`}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeCitationMarkers]}
+        components={components}
+      >
+        {answerText}
+      </ReactMarkdown>
     </div>
   );
 }

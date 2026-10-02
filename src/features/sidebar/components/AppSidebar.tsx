@@ -62,7 +62,14 @@ export function AppSidebar({ children }: AppSidebarProps) {
     >
       <DesktopSidebar onOpenCommand={() => setCommandOpen(true)} />
 
-      <SidebarInset className="min-w-0 bg-background">
+      {/*
+       * h-svh + overflow-hidden gives the shell a DEFINITE viewport height.
+       * The transcript's scroll viewport is sized by a flex-1/min-h-0 chain,
+       * which only resolves to a bounded (scrollable) height if an ancestor
+       * has a definite height - not just min-height. Without this, content
+       * grows past the viewport and body{overflow:hidden} clips it unreachably.
+       */}
+      <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background">
         <div className="flex h-12 shrink-0 items-center border-b border-border/70 px-3 md:hidden">
           <Button
             type="button"

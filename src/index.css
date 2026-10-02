@@ -261,3 +261,106 @@
     background-clip: content-box;
   }
 }
+
+/*
+ * Chat answer typography.
+ *
+ * LLM answers are markdown; react-markdown renders real elements and these
+ * rules give them readable spacing/structure using the app's design tokens.
+ * Scoped to .chat-markdown so the global base reset (p{margin:0}, bare
+ * headings) doesn't flatten rendered answers.
+ */
+@layer components {
+  .chat-markdown {
+    @apply break-words;
+  }
+
+  .chat-markdown > :first-child {
+    @apply mt-0;
+  }
+
+  .chat-markdown > :last-child {
+    @apply mb-0;
+  }
+
+  .chat-markdown p {
+    @apply my-3 leading-7;
+  }
+
+  .chat-markdown h1 {
+    @apply mt-6 mb-3 text-xl font-semibold;
+  }
+
+  .chat-markdown h2 {
+    @apply mt-5 mb-2.5 text-lg font-semibold;
+  }
+
+  .chat-markdown h3 {
+    @apply mt-4 mb-2 text-base font-semibold;
+  }
+
+  .chat-markdown h4 {
+    @apply mt-4 mb-2 text-sm font-semibold;
+  }
+
+  .chat-markdown ul {
+    @apply my-3 list-disc pl-6;
+  }
+
+  .chat-markdown ol {
+    @apply my-3 list-decimal pl-6;
+  }
+
+  .chat-markdown li {
+    @apply my-1 leading-7;
+  }
+
+  .chat-markdown li::marker {
+    @apply text-muted-foreground;
+  }
+
+  .chat-markdown a {
+    @apply font-medium text-primary underline underline-offset-4;
+  }
+
+  .chat-markdown strong {
+    @apply font-semibold text-foreground;
+  }
+
+  .chat-markdown em {
+    @apply italic;
+  }
+
+  .chat-markdown blockquote {
+    @apply my-4 border-l-2 border-border pl-4 text-muted-foreground;
+  }
+
+  .chat-markdown hr {
+    @apply my-6 border-border;
+  }
+
+  .chat-markdown code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
+  }
+
+  .chat-markdown pre {
+    @apply my-4 overflow-x-auto rounded-lg bg-muted p-4;
+  }
+
+  .chat-markdown pre code {
+    @apply bg-transparent p-0 text-[0.85em];
+  }
+
+  .chat-markdown table {
+    @apply my-4 w-full border-collapse text-sm;
+  }
+
+  .chat-markdown th,
+  .chat-markdown td {
+    @apply border border-border px-3 py-1.5 text-left align-top;
+  }
+
+  .chat-markdown th {
+    @apply bg-muted/50 font-semibold;
+  }
+}
