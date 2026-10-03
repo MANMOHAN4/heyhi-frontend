@@ -89,25 +89,25 @@ export function UserMenu({ onNavigate }: UserMenuProps) {
               <SidebarMenuButton
                 size="lg"
                 className="data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-sidebar-accent-foreground"
-              />
+              >
+                <Avatar className="size-8 rounded-lg">
+                  <AvatarFallback className="rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
+                    {getInitials(email)}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{displayName}</span>
+
+                  <span className="truncate text-xs text-muted-foreground">
+                    {user ? email : "Guest session"}
+                  </span>
+                </div>
+
+                <ChevronUp className="ml-auto size-4" />
+              </SidebarMenuButton>
             }
-          >
-            <Avatar className="size-8 rounded-lg">
-              <AvatarFallback className="rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
-                {getInitials(email)}
-              </AvatarFallback>
-            </Avatar>
-
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">{displayName}</span>
-
-              <span className="truncate text-xs text-muted-foreground">
-                {user ? email : "Guest session"}
-              </span>
-            </div>
-
-            <ChevronUp className="ml-auto size-4" />
-          </DropdownMenuTrigger>
+          />
 
           <DropdownMenuContent
             className="w-64 rounded-lg"

@@ -108,14 +108,14 @@ export function ThreadTranscript({
 
           <MessageScrollerButton
             /*
-             * Most current shadcn message-scroller implementations use:
-             * direction="end"
-             *
-             * If your generated component declares "bottom" instead, change
-             * only this value according to the union type in that file.
+             * Positioning (absolute, horizontally centered, bottom-4 when
+             * direction="end") is owned by the primitive's own classes. Only
+             * pass purely visual classes here - adding bottom-4/right-4 fought
+             * the primitive's inset-s-1/2 centering and stranded the button
+             * mid-screen over the transcript.
              */
             direction="end"
-            className="absolute bottom-4 right-4 z-10 rounded-full shadow-lg"
+            className="z-10 rounded-full shadow-lg"
             aria-label="Jump to latest message"
           >
             Jump to latest
