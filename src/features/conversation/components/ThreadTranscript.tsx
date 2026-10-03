@@ -60,9 +60,17 @@ export function ThreadTranscript({
   return (
     <div className="min-h-0 flex-1">
       <MessageScrollerProvider>
+        {/*
+         * MessageScrollerButton docks at `bottom-4` of this element (its own
+         * primitive styling - see message-scroller.tsx). That makes this
+         * element's bottom edge a real piece of UI chrome, not just a
+         * scroll-clipping box: the content inside needs enough reserved
+         * bottom space (see pb-16 below) that the button's dock zone is
+         * always empty, never stamped over the last card or source row.
+         */}
         <MessageScroller className="relative h-full min-h-0">
           <MessageScrollerViewport className="h-full min-h-0">
-            <MessageScrollerContent className="mx-auto flex w-full max-w-4xl flex-col gap-1 px-3 py-6 sm:px-5 sm:py-8">
+            <MessageScrollerContent className="mx-auto flex w-full max-w-4xl flex-col gap-1 px-3 pb-16 pt-6 sm:px-5 sm:pt-8">
               {isEmpty && (
                 <div className="flex min-h-[45vh] items-center justify-center">
                   <EmptyState
@@ -102,7 +110,6 @@ export function ThreadTranscript({
                 </MessageScrollerItem>
               )}
 
-              <div className="h-2 shrink-0" aria-hidden="true" />
             </MessageScrollerContent>
           </MessageScrollerViewport>
 
