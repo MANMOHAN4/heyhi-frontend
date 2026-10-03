@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { History } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Composer } from "@/features/conversation/components/Composer";
 import { ThreadTranscript } from "@/features/conversation/components/ThreadTranscript";
-import { useThreadLookup } from "@/features/conversation/useThreadLookup";
+import { useThreadQuery } from "@/features/conversation/useThreadQuery";
 import { useThreadStream } from "@/features/conversation/useThreadStream";
+import { ApiError } from "@/lib/apiError";
 import { PageErrorState } from "@/components/shared/PageErrorState";
 import { PageLoadingState } from "@/components/shared/PageLoadingState";
 
@@ -21,6 +22,7 @@ export default function ThreadPage() {
   }>();
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [turns, setTurns] = useState<Turn[]>([]);
 
@@ -29,16 +31,11 @@ export default function ThreadPage() {
    * :threadId param changes (index route and /threads/:threadId share the same
    * element type), so local state like `turns` would otherwise leak from
    * one thread into the next when navigating sidebar item A -> B. Reset
-   * whenever the route's thread id actually changes.
+   * whenever the route's thread id actually changes, and allow the new
+   * thread's history to seed again.
    */
   const previousRouteThreadIdRef = useRef(routeThreadId);
-
-  useEffect(() => {
-    if (previousRouteThreadIdRef.current !== routeThreadId) {
-      previousRouteThreadIdRef.current = routeThreadId;
-      setTurns([]);
-    }
-  }, [routeThreadId]);
+  const seededThreadIdRef = useRef<string | undefined>(undefined);
 
   const {
     current,
@@ -52,6 +49,13 @@ export default function ThreadPage() {
     cancelStream,
   } = useThreadStream();
 
+  /*
+   * Fetches the opened thread's full persisted turn history (sidebar click,
+   * reload, in-app link). Disabled for guests and for the "new conversation"
+   * screen (no threadId).
+   */
+  const threadQuery = useThreadQuery(routeThreadId);
+
   const isStreaming = Boolean(current && !current.isDone);
 
   const activeThreadId =
@@ -60,15 +64,43 @@ export default function ThreadPage() {
     sessionStorage.getItem("heyhi:guest-thread-id") ??
     undefined;
 
-  /*
-   * Resolves whether routeThreadId is a real, owned thread (and its title)
-   * using GET /threads, since there is no GET /threads/{id} endpoint to
-   * fetch full turn history directly - see useThreadLookup for why.
-   */
-  const threadLookup = useThreadLookup(routeThreadId);
+  useEffect(() => {
+    if (previousRouteThreadIdRef.current !== routeThreadId) {
+      previousRouteThreadIdRef.current = routeThreadId;
+      seededThreadIdRef.current = undefined;
+      setTurns([]);
+    }
+  }, [routeThreadId]);
 
-  const hasRenderedAnyTurnThisSession =
-    turns.length > 0 || current !== null || createdThreadId === routeThreadId;
+  /*
+   * Seed the transcript from fetched history. Guards:
+   * - data?.id === routeThreadId: never seed one thread's history into another
+   *   (the query cache is keyed per thread, but renders can briefly straddle a
+   *   navigation).
+   * - seed only when nothing is shown yet (previous.length === 0): a turn that
+   *   just streamed in this tab is authoritative; the server copy may lag a
+   *   moment behind, so don't clobber or double-count it.
+   * seededThreadIdRef then pins this thread so a later background refetch
+   * (e.g. after a follow-up) won't re-seed over the live transcript.
+   */
+  useEffect(() => {
+    if (!routeThreadId) {
+      return;
+    }
+
+    if (seededThreadIdRef.current === routeThreadId) {
+      return;
+    }
+
+    if (threadQuery.data?.id !== routeThreadId) {
+      return;
+    }
+
+    const history = threadQuery.data.turns ?? [];
+
+    setTurns((previous) => (previous.length > 0 ? previous : history));
+    seededThreadIdRef.current = routeThreadId;
+  }, [routeThreadId, threadQuery.data]);
 
   useEffect(() => {
     if (!createdThreadId || routeThreadId) {
@@ -101,8 +133,20 @@ export default function ThreadPage() {
 
     setTurns((previous) => [...previous, completedTurn]);
 
+    if (activeThreadId) {
+      /*
+       * These turns are now owned locally for this thread - pin it so the
+       * history fetch won't re-seed over them, and refresh the cached history
+       * so reopening the thread later shows the newly-persisted turn.
+       */
+      seededThreadIdRef.current = activeThreadId;
+      void queryClient.invalidateQueries({
+        queryKey: ["thread", activeThreadId],
+      });
+    }
+
     clearTransientState();
-  }, [clearTransientState, current]);
+  }, [activeThreadId, clearTransientState, current, queryClient]);
 
   const handleSubmit = useCallback(
     ({
@@ -157,63 +201,59 @@ export default function ThreadPage() {
     [activeThreadId, continueThread, isStreaming],
   );
 
+  const hasRenderedAnyTurnThisSession =
+    turns.length > 0 || current !== null || createdThreadId === routeThreadId;
+
   /*
-   * Only block rendering while we're actively trying to resolve a thread the
-   * person navigated to directly (sidebar click, reload, shared link within
-   * the app) and haven't produced any turns for yet in this tab. Once
-   * something has streamed in this session, always show it - don't flash a
+   * Block rendering only while first resolving a thread the person navigated
+   * to directly and haven't produced any turns for yet in this tab. Once
+   * something has streamed or seeded, always show it rather than flashing a
    * loading/error state over an active or completed conversation.
    */
   if (
     routeThreadId &&
     !hasRenderedAnyTurnThisSession &&
-    threadLookup.status === "loading"
+    threadQuery.isLoading
   ) {
     return <PageLoadingState variant="conversation" />;
   }
 
-  if (
-    routeThreadId &&
-    !hasRenderedAnyTurnThisSession &&
-    threadLookup.status === "not-found"
-  ) {
+  if (routeThreadId && !hasRenderedAnyTurnThisSession && threadQuery.isError) {
+    const notFound =
+      threadQuery.error instanceof ApiError && threadQuery.error.status === 404;
+
     return (
       <main className="flex min-h-0 flex-1 items-center justify-center p-6">
         <PageErrorState
-          title="Conversation unavailable"
-          message="This conversation doesn't exist, or you don't have access to it."
+          title={notFound ? "Conversation unavailable" : "Couldn't load conversation"}
+          message={
+            notFound
+              ? "This conversation doesn't exist, or you don't have access to it."
+              : "Something went wrong loading this conversation. Please try again."
+          }
+          onRetry={notFound ? undefined : () => void threadQuery.refetch()}
           className="max-w-md"
         />
       </main>
     );
   }
 
+  /*
+   * Suppress the "Start a conversation" empty state during the one-frame gap
+   * where history has arrived but the seeding effect hasn't run yet, so a
+   * thread with real history never flashes as empty.
+   */
+  const suppressEmptyState =
+    (threadQuery.data?.turns?.length ?? 0) > 0 && turns.length === 0;
+
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col">
-        {routeThreadId &&
-          threadLookup.status === "found" &&
-          !hasRenderedAnyTurnThisSession && (
-            <div className="mx-auto mt-3 flex w-full max-w-3xl items-start gap-2.5 rounded-lg border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-              <History className="mt-0.5 size-4 shrink-0" />
-              <p>
-                Continuing{" "}
-                <span className="font-medium text-foreground">
-                  {threadLookup.title}
-                </span>
-                . Earlier messages in this conversation aren&apos;t shown
-                here yet - ask a follow-up below to keep going.
-              </p>
-            </div>
-          )}
-
         <ThreadTranscript
           turns={turns}
           streamingTurn={current}
           onFollowUpSelect={handleFollowUpSelect}
-          suppressEmptyState={
-            threadLookup.status === "found" && !hasRenderedAnyTurnThisSession
-          }
+          suppressEmptyState={suppressEmptyState}
         />
 
         {/*

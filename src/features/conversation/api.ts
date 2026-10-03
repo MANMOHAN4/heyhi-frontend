@@ -11,6 +11,7 @@ import type {
   CreateThreadRequest,
   ProSearchRequest,
   ShareThreadResponse,
+  Thread,
   ThreadSummary,
 } from "./types";
 
@@ -45,17 +46,15 @@ export function getThreads(options?: {
 }
 
 /*
- * NOTE: there is currently no documented GET /threads/{threadId} endpoint
- * on the backend (see 02-api-reference.md - only GET /threads, the list
- * endpoint, exists). Full thread history for the ThreadPage route is
- * reconstructed client-side from GET /threads (title/updated_at only) plus
- * whatever turns have streamed in during this browser session, because
- * there is currently no way to fetch a single thread's turn array at all.
- *
- * Flag to backend: add GET /threads/{threadId} returning the full Thread
- * (including `turns`) so a thread opened from the sidebar/reload can show
- * its real history instead of only turns generated in the current tab.
+ * GET /threads/{threadId} - auth-required, owner-scoped. Returns the full
+ * Thread including its turn history (02-api-reference.md §8.2). A thread that
+ * doesn't exist OR isn't owned by the caller both return 404 (the backend
+ * deliberately doesn't distinguish, to avoid leaking thread existence across
+ * accounts), surfaced here as an ApiError the caller can treat as not-found.
  */
+export function getThread(threadId: string): Promise<Thread> {
+  return apiFetch<Thread>(`/threads/${encodeURIComponent(threadId)}`);
+}
 /*
  * GET /models - public, no auth required (BACKEND_API_REFERENCE.md §8.2,
  * P6): [{ id: string }]. No display metadata is returned - label by id.

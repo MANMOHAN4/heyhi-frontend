@@ -20,11 +20,10 @@ type ThreadTranscriptProps = {
   streamingTurn: StreamingTurnState | null;
   onFollowUpSelect: (query: string) => void;
   /*
-   * Suppresses the "Start a conversation" empty state for a thread that
-   * genuinely exists and has history, just not history this page can
-   * display yet (see ThreadPage's continuing-conversation banner, and
-   * useThreadLookup for why). Showing both together would contradict each
-   * other - one says start fresh, the other says you're continuing.
+   * Suppresses the "Start a conversation" empty state for a thread whose
+   * history has been fetched but not yet seeded into the transcript (a
+   * one-frame gap in ThreadPage). Without this, a thread with real history
+   * would briefly flash "start fresh" before its turns render.
    */
   suppressEmptyState?: boolean;
 };
