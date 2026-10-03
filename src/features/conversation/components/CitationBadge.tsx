@@ -200,6 +200,18 @@ export function AnswerWithCitations({
     [citations, sources],
   );
 
+  /*
+   * Some models emit citation markers with full-width CJK brackets ("【2】") or
+   * full-width ASCII brackets ("［2］") rather than "[2]". Normalize only the
+   * digit-wrapped ones to plain [n] so the rehype plugin below turns them into
+   * interactive badges instead of leaving literal "【2】" text. Genuine CJK
+   * punctuation in prose is left untouched.
+   */
+  const normalizedText = React.useMemo(
+    () => answerText.replace(/[【［]\s*(\d+)\s*[】］]/g, "[$1]"),
+    [answerText],
+  );
+
   const components = React.useMemo<Components>(
     () => ({
       cite({ node }) {
@@ -229,7 +241,7 @@ export function AnswerWithCitations({
         rehypePlugins={[rehypeCitationMarkers]}
         components={components}
       >
-        {answerText}
+        {normalizedText}
       </ReactMarkdown>
     </div>
   );

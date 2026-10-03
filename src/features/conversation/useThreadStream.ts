@@ -273,7 +273,15 @@ function processSseEvent(rawEvent: string, handlers: StreamHandlers): void {
     }
 
     if (line.startsWith("data:")) {
-      dataLines.push(line.slice("data:".length).replace(/^ /, ""));
+      /*
+       * Strip ONLY the "data:" field name - never a following space. Spring's
+       * SSE writer emits `data:<value>` with no padding space, so the value's
+       * own leading space is significant (LLM tokens are typically " word").
+       * The SSE "ignore one optional leading space" rule assumes the server
+       * pads with a space; Spring doesn't, so stripping it here deleted every
+       * inter-word space and ran answers together ("Paris,thecapitalofFrance").
+       */
+      dataLines.push(line.slice("data:".length));
     }
   }
 
