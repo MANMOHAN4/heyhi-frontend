@@ -62,19 +62,30 @@ export function StreamingAnswer({
 
   return (
     <Message align="start" className="w-full">
-      <MessageHeader className="mb-2 flex items-center gap-2">
-        <div className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Bot className="size-3.5" />
-        </div>
+      {/*
+       * The "heyHi" header is a generating-response indicator, not a
+       * permanent label: it's visible while a turn is in flight (thinking
+       * or actively streaming tokens) and disappears the instant isDone
+       * flips true, matching TurnView (the completed-turn renderer), which
+       * never shows this header at all. The sr-only status announcement
+       * stays independent of the visible label so screen readers are still
+       * told what's happening even in the split second right at isDone.
+       */}
+      {!streamingTurn.isDone && (
+        <MessageHeader className="mb-2 flex items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <Bot className="size-3.5" />
+          </div>
 
-        <span className="text-xs font-medium text-muted-foreground">heyHi</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            heyHi
+          </span>
 
-        {!streamingTurn.isDone && (
           <span className="sr-only" role="status">
             {assistantStatus}
           </span>
-        )}
-      </MessageHeader>
+        </MessageHeader>
+      )}
 
       <MessageContent className="min-w-0 max-w-none space-y-4">
         {streamingTurn.isProSearch && (
