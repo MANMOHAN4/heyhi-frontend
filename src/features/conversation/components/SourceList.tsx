@@ -32,10 +32,28 @@ export function SourceList({ sources }: SourceListProps) {
         </Badge>
       </div>
 
-      <div className="flex min-w-0 gap-2 overflow-x-auto pb-2 [scrollbar-width:thin]">
-        {sources.map((source, index) => (
-          <SourceCard key={source.id} source={source} index={index} />
-        ))}
+      {/*
+       * The card row scrolls horizontally past the visible width whenever
+       * there are more than ~3 sources. Without a visual cue, a row cut off
+       * mid-card at the container edge reads as a layout bug rather than an
+       * intentional carousel - the fade masks make "there's more, scroll"
+       * obvious the way Perplexity's own source row does.
+       */}
+      <div className="relative -mx-1">
+        <div className="flex min-w-0 gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">
+          {sources.map((source, index) => (
+            <SourceCard key={source.id} source={source} index={index} />
+          ))}
+        </div>
+
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-background to-transparent"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent"
+        />
       </div>
     </section>
   );

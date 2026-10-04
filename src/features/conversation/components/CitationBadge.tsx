@@ -36,7 +36,7 @@ export function CitationBadge({
     >
       <Badge
         variant="secondary"
-        className={`mx-0.5 inline-flex h-5 cursor-help items-center rounded-md px-1.5 text-[11px] font-medium leading-none hover:bg-accent ${
+        className={`mr-0.5 ml-px inline-flex h-5 cursor-help items-center rounded-md px-1.5 text-[11px] font-medium leading-none hover:bg-accent ${
           className ?? ""
         }`}
       >
@@ -53,7 +53,7 @@ export function CitationBadge({
     >
       <Badge
         variant="secondary"
-        className={`mx-0.5 inline-flex h-5 items-center rounded-md px-1.5 text-[11px] font-medium leading-none transition-colors hover:bg-accent ${
+        className={`mr-0.5 ml-px inline-flex h-5 items-center rounded-md px-1.5 text-[11px] font-medium leading-none transition-colors hover:bg-accent ${
           className ?? ""
         }`}
       >

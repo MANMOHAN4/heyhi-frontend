@@ -70,7 +70,14 @@ export function ThreadTranscript({
          */}
         <MessageScroller className="relative h-full min-h-0">
           <MessageScrollerViewport className="h-full min-h-0">
-            <MessageScrollerContent className="mx-auto flex w-full max-w-4xl flex-col gap-1 px-3 pb-16 pt-6 sm:px-5 sm:pt-8">
+            {/*
+             * gap-10 separates whole turns (one user question + its answer)
+             * from the next - each TurnView already handles its own
+             * internal question-to-answer rhythm via its own spacing, so
+             * this is specifically the "this exchange is over, a new one is
+             * starting" breathing room that was missing before.
+             */}
+            <MessageScrollerContent className="mx-auto flex w-full max-w-4xl flex-col gap-10 px-3 pb-16 pt-6 sm:px-5 sm:pt-8">
               {isEmpty && (
                 <div className="flex min-h-[45vh] items-center justify-center">
                   <EmptyState

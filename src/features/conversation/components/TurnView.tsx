@@ -1,4 +1,4 @@
-import { Bot } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import {
   Message,
@@ -18,17 +18,23 @@ interface TurnViewProps {
 
 export function TurnView({ turn, isLatest, onFollowUpSelect }: TurnViewProps) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <Bubble align="end" variant="default" className="ml-auto">
-        <BubbleContent className="rounded-2xl px-4 py-2.5 text-[15px] leading-6">
+        {/*
+         * A slightly richer surface than the flat `bg-primary` default -
+         * a subtle shadow and crisper corners so the user's own message
+         * reads as a distinct, raised element against the page background
+         * rather than blending into the same flat tone as everything else.
+         */}
+        <BubbleContent className="rounded-2xl px-4 py-2.5 text-[15px] leading-6 shadow-sm">
           {turn.query_text}
         </BubbleContent>
       </Bubble>
 
       <Message align="start" className="w-full">
-        <MessageHeader className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="flex size-5 items-center justify-center rounded-md border border-border bg-card">
-            <Bot className="size-3" />
+        <MessageHeader className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+          <span className="flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-primary/90 to-primary/60 text-primary-foreground shadow-sm">
+            <Sparkles className="size-3.5" />
           </span>
           heyHi
         </MessageHeader>
