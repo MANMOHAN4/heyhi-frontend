@@ -115,23 +115,32 @@ export function UserMenu({ onNavigate }: UserMenuProps) {
             align="end"
             sideOffset={8}
           >
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-2 py-2 text-left text-sm">
-                <Avatar className="size-8 rounded-lg">
-                  <AvatarFallback className="rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
-                    {getInitials(email)}
-                  </AvatarFallback>
-                </Avatar>
+            {/*
+              * DropdownMenuLabel renders Base UI's Menu.GroupLabel under the
+              * hood, which throws ("MenuGroupContext is missing") unless
+              * it's nested inside a <Menu.Group> - a <DropdownMenuGroup>
+              * wrapper is required here even though this is a single,
+              * non-interactive header row rather than a real option group.
+              */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="p-0 font-normal">
+                <div className="flex items-center gap-2 px-2 py-2 text-left text-sm">
+                  <Avatar className="size-8 rounded-lg">
+                    <AvatarFallback className="rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
+                      {getInitials(email)}
+                    </AvatarFallback>
+                  </Avatar>
 
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{displayName}</span>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">{displayName}</span>
 
-                  <span className="truncate text-xs text-muted-foreground">
-                    {user ? email : "Guest session"}
-                  </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {user ? email : "Guest session"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </DropdownMenuLabel>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
 
