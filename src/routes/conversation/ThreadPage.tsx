@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Composer } from "@/features/conversation/components/Composer";
@@ -22,29 +22,7 @@ export default function ThreadPage() {
   }>();
 
   const navigate = useNavigate();
-  const location = useLocation();
   const queryClient = useQueryClient();
-
-  /*
-   * "Start a Space thread" (SpaceDetailPage) navigates here with
-   * { spaceId, spaceName } in router state rather than a URL param, since
-   * a brand-new thread has no id of its own yet to put in the URL. This
-   * was previously read nowhere - the button appeared to work but silently
-   * dropped the Space context, landing on a completely ordinary unscoped
-   * composer. Read it once on mount; it only matters for a genuinely new
-   * thread (routeThreadId is absent), never for an existing one.
-   */
-  const spaceNavigationState = location.state as
-    | { spaceId?: string; spaceName?: string }
-    | null;
-  const [activeSpace] = useState<{ id: string; name: string } | null>(() => {
-    if (routeThreadId) return null;
-    if (!spaceNavigationState?.spaceId) return null;
-    return {
-      id: spaceNavigationState.spaceId,
-      name: spaceNavigationState.spaceName ?? "this Space",
-    };
-  });
 
   const [turns, setTurns] = useState<Turn[]>([]);
 
@@ -207,13 +185,9 @@ export default function ThreadPage() {
         request.file_ids = fileIds;
       }
 
-      if (activeSpace) {
-        request.space_id = activeSpace.id;
-      }
-
       void startThread(request);
     },
-    [activeSpace, activeThreadId, continueThread, startProSearch, startThread],
+    [activeThreadId, continueThread, startProSearch, startThread],
   );
 
   const handleFollowUpSelect = useCallback(
@@ -310,8 +284,6 @@ export default function ThreadPage() {
               isStreaming={isStreaming}
               onSubmit={handleSubmit}
               onStopStreaming={cancelStream}
-              spaceId={activeSpace?.id}
-              spaceName={activeSpace?.name}
             />
           </div>
         </div>
