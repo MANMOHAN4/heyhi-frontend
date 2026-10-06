@@ -33,6 +33,7 @@ export type ComposerSubmitParams = {
 type ComposerProps = {
   threadId?: string;
   spaceId?: string;
+  spaceName?: string;
   isStreaming: boolean;
   onSubmit: (params: ComposerSubmitParams) => void;
   onStopStreaming?: () => void;
@@ -43,6 +44,7 @@ const MAX_TEXTAREA_HEIGHT_PX = 220;
 export function Composer({
   threadId,
   spaceId,
+  spaceName,
   isStreaming,
   onSubmit,
   onStopStreaming,
@@ -273,8 +275,9 @@ export function Composer({
 
       {spaceId && !isContinuation && (
         <p className="mt-2.5 px-1 text-center text-xs text-muted-foreground">
-          This conversation will use this Space&apos;s shared files and custom
-          instructions.
+          This conversation will use{" "}
+          {spaceName ? <strong className="font-medium text-foreground/80">{spaceName}</strong> : "this Space"}
+          &apos;s shared files and custom instructions.
         </p>
       )}
 

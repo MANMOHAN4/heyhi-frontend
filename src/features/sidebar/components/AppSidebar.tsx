@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageSquarePlus, PanelLeft, Search } from "lucide-react";
+import { MessageSquarePlus, PanelLeft, Plus, Search } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { AppLogo } from "@/components/shared/AppLogo";
 import { Button } from "@/components/ui/button";
@@ -236,9 +236,30 @@ function DesktopSidebar({ onOpenCommand }: DesktopSidebarProps) {
             <Separator className="my-3" />
 
             <SidebarGroup className="p-0">
-              <SidebarGroupLabel className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Spaces
-              </SidebarGroupLabel>
+              <div className="flex items-center justify-between px-2">
+                {/*
+                 * This label used to be plain static text with no link
+                 * anywhere in the app pointing at /spaces - once someone
+                 * had zero Spaces, there was no way to reach the Spaces
+                 * list, the "New Space" button, or Space creation at all
+                 * except by typing the URL in by hand. It's now the entry
+                 * point into that whole area of the app.
+                 */}
+                <Link
+                  to="/spaces"
+                  className="rounded-sm text-[11px] font-medium uppercase tracking-wider text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Spaces
+                </Link>
+
+                <Link
+                  to="/spaces"
+                  aria-label="See all Spaces"
+                  className="rounded-md p-1 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Plus className="size-3.5" />
+                </Link>
+              </div>
 
               <SidebarGroupContent>
                 {spacesQuery.isLoading && <SpaceListSkeleton />}
@@ -256,7 +277,12 @@ function DesktopSidebar({ onOpenCommand }: DesktopSidebarProps) {
                   !spacesQuery.isError &&
                   spacesQuery.data?.length === 0 && (
                     <div className="px-1 py-2">
-                      <EmptyState message="No Spaces yet" />
+                      <Link
+                        to="/spaces"
+                        className="flex items-center justify-center rounded-lg border border-dashed border-border/70 px-3 py-3 text-xs text-muted-foreground outline-none transition-colors hover:border-border hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        Create your first Space
+                      </Link>
                     </div>
                   )}
 
@@ -269,6 +295,16 @@ function DesktopSidebar({ onOpenCommand }: DesktopSidebarProps) {
                           <SidebarSpaceItem space={space} />
                         </SidebarMenuItem>
                       ))}
+
+                      <SidebarMenuItem>
+                        <Link
+                          to="/spaces"
+                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <Plus className="size-3.5" />
+                          New Space
+                        </Link>
+                      </SidebarMenuItem>
                     </SidebarMenu>
                   )}
               </SidebarGroupContent>
@@ -395,9 +431,24 @@ function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
             <Separator className="my-4" />
 
             <div>
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Spaces
-              </p>
+              <div className="mb-2 flex items-center justify-between">
+                <Link
+                  to="/spaces"
+                  onClick={closeSheet}
+                  className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Spaces
+                </Link>
+
+                <Link
+                  to="/spaces"
+                  onClick={closeSheet}
+                  aria-label="See all Spaces"
+                  className="rounded-md p-1 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Plus className="size-3.5" />
+                </Link>
+              </div>
 
               {spacesQuery.isLoading && <SpaceListSkeleton />}
 
@@ -411,7 +462,13 @@ function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
               {!spacesQuery.isLoading &&
                 !spacesQuery.isError &&
                 spacesQuery.data?.length === 0 && (
-                  <EmptyState message="No Spaces yet" />
+                  <Link
+                    to="/spaces"
+                    onClick={closeSheet}
+                    className="flex items-center justify-center rounded-lg border border-dashed border-border/70 px-3 py-3 text-xs text-muted-foreground outline-none transition-colors hover:border-border hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Create your first Space
+                  </Link>
                 )}
 
               {!spacesQuery.isLoading &&
@@ -425,6 +482,15 @@ function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
                         onNavigate={closeSheet}
                       />
                     ))}
+
+                    <Link
+                      to="/spaces"
+                      onClick={closeSheet}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Plus className="size-3.5" />
+                      New Space
+                    </Link>
                   </div>
                 )}
             </div>
